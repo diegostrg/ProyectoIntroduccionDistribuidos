@@ -18,10 +18,12 @@ class DTIBackup:
         self.push_dti = self.context.socket(zmq.PUSH)
         self.push_dti.connect(f"tcp://{dti_ip}:{dti_sync_port}")
 
-        self.RUTA_JSON = "recursos_backup.json"  # Archivo separado para backup
+        self.RUTA_JSON = "recursos_backup.json"
         self.lock = threading.Lock()
 
-        print(f"[DTIBackup] Servidor de respaldo iniciado en puerto {puerto_rep} y esperando solicitudes...")
+        print(f"[DTIBackup] Servidor de respaldo iniciado en puerto {puerto_rep}")
+        print(f"[DTIBackup] Escuchando sincronización en puerto {sync_port}")
+        print(f"[DTIBackup] Conectando a DTI principal en {dti_ip}:{dti_sync_port}")
 
         self._inicializar_recursos()
 
@@ -60,7 +62,7 @@ class DTIBackup:
                 print("[DTIBackup] Recursos sincronizados desde DTI principal.")
             except Exception as e:
                 print(f"[DTIBackup] Error recibiendo sincronización: {e}")
-                time.sleep(1)  # Evita bucle infinito en caso de error
+                time.sleep(1)
 
     def procesar_solicitud(self, solicitud):
         if solicitud.get("tipo") == "conexion":
@@ -80,8 +82,9 @@ class DTIBackup:
                 estado = "Rechazado"
 
             self.guardar_recursos(recursos)
-            # Opcional: sincronizar de vuelta al DTI principal
-            # self.sincronizar_dti(recursos)  # Comentado para evitar bucles
+            # Si procesamos exitosamente, sincronizar al DTI principal
+            if estado == "Aceptado":
+                self.sincronizar_dti(recursos)
 
         respuesta = {
             "facultad": solicitud["facultad"],
