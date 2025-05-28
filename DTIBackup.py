@@ -3,7 +3,7 @@ import json
 import os
 import threading
 import time
-from autenticacion_DTI import AutenticacionDTI
+from AutenticacionDTI import AutenticacionDTI
 
 class DTIBackup:
     def __init__(self, puerto_rep=5999, sync_port=6006, dti_ip="localhost", dti_sync_port=6007):

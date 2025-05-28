@@ -2,7 +2,7 @@ import zmq
 import json
 import time
 import getpass
-from autenticacion_Facultad import AutenticacionFacultad
+from AutenticacionFacultad import AutenticacionFacultad
 
 class Facultad:
     def __init__(self, nombre, puerto):
