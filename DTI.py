@@ -4,6 +4,10 @@ import os
 import threading
 import time
 
+# Este es el código del servidor DTI que maneja las solicitudes de recursos
+# y sincroniza con un backup. El backup puede estar en la misma máquina o en una diferente.
+# El DTI debe funcionar independientemente, pero se sincroniza con el backup para mantener la disponibilidad de recursos.
+
 class DTI:
     def __init__(self, puerto_rep=6000, backup_ip="localhost", backup_port=6006):
         self.context = zmq.Context()
@@ -14,7 +18,7 @@ class DTI:
         self.push_backup = self.context.socket(zmq.PUSH)
         self.push_backup.connect(f"tcp://{backup_ip}:{backup_port}")
 
-        self.RUTA_JSON = "recursos_dti.json"  # Archivo separado para DTI
+        self.RUTA_JSON = "recursos_dti.json"  # Archivo separado para el DTI principal
         self.lock = threading.Lock()
 
         print(f"[DTI] Servidor iniciado en puerto {puerto_rep} y esperando solicitudes...")

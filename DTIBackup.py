@@ -4,6 +4,12 @@ import os
 import threading
 import time
 
+# ESTE ES EL DTIBACKUP
+# Es el servidor de RESPALDO del DTI. PERO DEBE FUNCIONAR COMO UN SERVIDOR INDEPENDIENTE.
+# Es decir, no depende del DTI principal, pero se sincroniza con él.
+# SI EL DTI PRINCIPAL FALLA, ESTE DEBE PODER SEGUIR ATENDIENDO SOLICITUDES.
+# Debe funcionar en cualquier computadora de la red, y debe poder recibir solicitudes de facultades en su puerto 5999.
+# No necesita que este el DTI en la misma computadora, pero debe poder conectarse a él para sincronizar recursos.
 class DTIBackup:
     def __init__(self, puerto_rep=5999, sync_port=6006, dti_ip="localhost", dti_sync_port=6007):
         self.context = zmq.Context()
