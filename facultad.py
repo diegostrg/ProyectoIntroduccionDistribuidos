@@ -1,21 +1,42 @@
 import zmq
 import json
 import time
-
+import getpass
+from autenticacion_Facultad import AutenticacionFacultad
 
 class Facultad:
     def __init__(self, nombre, puerto):
         self.nombre = nombre
         self.puerto = puerto
         self.context = zmq.Context()
+        self.password_facultad = None
+        
+        # Sistema de autenticación para programas
+        self.auth = AutenticacionFacultad(nombre)
 
         # Sockets
         self.socket_rep = self.context.socket(zmq.REP)
         self.socket_req = self.context.socket(zmq.REQ)
         self.socket_sub = self.context.socket(zmq.SUB)
 
+        self._solicitar_password_facultad()
         self.configurar_conexiones()
         self.notificar_conexion()
+
+    def _solicitar_password_facultad(self):
+        """Solicita la contraseña de la facultad al administrador"""
+        print(f"\n[{self.nombre}] Sistema de autenticación")
+        print("=" * 50)
+        print("Para conectar al DTI, ingrese la contraseña de la facultad:")
+        print("Contraseñas por defecto (formato: nombreXXXX2024):")
+        print("Ejemplo: ingenieria2024, medicina2024, etc.")
+        print("=" * 50)
+        
+        while True:
+            self.password_facultad = getpass.getpass(f"Contraseña para {self.nombre}: ")
+            if self.password_facultad:
+                break
+            print("❌ La contraseña no puede estar vacía")
 
     def configurar_conexiones(self):
         self.socket_rep.bind(f"tcp://*:{self.puerto}")
@@ -26,10 +47,28 @@ class Facultad:
         print(f"[{self.nombre}] Facultad activa en puerto {self.puerto}.")
 
     def notificar_conexion(self):
-        mensaje = {"tipo": "conexion", "facultad": self.nombre}
-        self.socket_req.send_json(mensaje)
-        respuesta = self.socket_req.recv_json()
-        print(f"[{self.nombre}] Conexión al DTI: {respuesta}")
+        """Notifica la conexión al DTI con autenticación"""
+        mensaje = {
+            "tipo": "conexion", 
+            "facultad": self.nombre,
+            "password": self.password_facultad
+        }
+        
+        try:
+            self.socket_req.send_json(mensaje)
+            respuesta = self.socket_req.recv_json()
+            
+            if respuesta.get("estado") == "Conexión aceptada":
+                print(f"[{self.nombre}] ✓ Autenticada exitosamente en el DTI")
+                self.auth.mostrar_credenciales_iniciales()
+            else:
+                print(f"[{self.nombre}] ✗ Error de autenticación: {respuesta.get('mensaje', 'Error desconocido')}")
+                print("Verifique la contraseña e intente nuevamente")
+                exit(1)
+                
+        except Exception as e:
+            print(f"[{self.nombre}] ✗ Error conectando al DTI: {e}")
+            exit(1)
 
     def escuchar_solicitudes(self):
         print(f"[{self.nombre}] Esperando solicitudes académicas...")
@@ -38,11 +77,39 @@ class Facultad:
                 solicitud = self.socket_rep.recv_json()
                 print(f"[{self.nombre}] Solicitud recibida del programa: {solicitud}")
 
+                # Verificar autenticación del programa
+                usuario = solicitud.get("usuario")
+                password_programa = solicitud.get("password_programa")
+                
+                if not usuario or not password_programa:
+                    respuesta_error = {
+                        "estado": "Error de autenticación",
+                        "mensaje": "Usuario y contraseña requeridos"
+                    }
+                    self.socket_rep.send_json(respuesta_error)
+                    print(f"[{self.nombre}] ✗ Solicitud rechazada: Faltan credenciales")
+                    continue
+                
+                if not self.auth.verificar_programa(usuario, password_programa):
+                    respuesta_error = {
+                        "estado": "Acceso denegado",
+                        "mensaje": "Credenciales inválidas"
+                    }
+                    self.socket_rep.send_json(respuesta_error)
+                    print(f"[{self.nombre}] ✗ Solicitud rechazada: Credenciales inválidas para {usuario}")
+                    continue
+
+                print(f"[{self.nombre}] ✓ Programa autenticado: {usuario}")
+
+                # Agregar credenciales de la facultad a la solicitud
+                solicitud_dti = solicitud.copy()
+                solicitud_dti["password_facultad"] = self.password_facultad
+                
                 # Enviar solicitud al DTI y medir el tiempo de respuesta
-                inicio = time.time()  # Inicia el cronómetro
-                self.socket_req.send_json(solicitud)
+                inicio = time.time()
+                self.socket_req.send_json(solicitud_dti)
                 respuesta = self.socket_req.recv_json()
-                fin = time.time()  # Finaliza el cronómetro
+                fin = time.time()
 
                 print(f"[{self.nombre}] Respuesta recibida del DTI: {respuesta}")
                 print(f"[{self.nombre}] Tiempo de respuesta del DTI: {fin - inicio:.4f} segundos")
@@ -60,7 +127,6 @@ class Facultad:
         self.socket_req.close()
         self.socket_sub.close()
         self.context.term()
-
 
 # Esta función va fuera de la clase
 def seleccionar_facultad():
@@ -90,7 +156,6 @@ def seleccionar_facultad():
                 print("Opción inválida.")
         except ValueError:
             print("Ingrese un número válido.")
-
 
 if __name__ == "__main__":
     nombre, puerto = seleccionar_facultad()

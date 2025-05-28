@@ -1,7 +1,8 @@
 import zmq
 import json
-import time  # Importamos el módulo time
-import random  # Importamos el módulo random
+import time
+import random
+import getpass
 
 class ProgramaAcademico:
     def __init__(self):
@@ -85,9 +86,36 @@ class ProgramaAcademico:
         self.facultad = ""
         self.programa = ""
         self.puerto = 0
+        self.usuario = ""
+        self.password_programa = ""
+
+    def autenticar_usuario(self):
+        """Solicita credenciales de autenticación al usuario"""
+        print("\n" + "="*50)
+        print("SISTEMA DE AUTENTICACIÓN")
+        print("="*50)
+        print("Credenciales por defecto disponibles:")
+        print("Usuario: programa1 | Contraseña: prog123")
+        print("Usuario: programa2 | Contraseña: prog456") 
+        print("Usuario: programa3 | Contraseña: prog789")
+        print("Usuario: admin_facultad | Contraseña: admin2024")
+        print("Usuario: estudiante_test | Contraseña: test123")
+        print("="*50)
+        
+        while True:
+            self.usuario = input("Usuario: ").strip()
+            if self.usuario:
+                break
+            print("❌ El usuario no puede estar vacío")
+        
+        while True:
+            self.password_programa = getpass.getpass("Contraseña: ")
+            if self.password_programa:
+                break
+            print("❌ La contraseña no puede estar vacía")
 
     def seleccionar_facultad(self):
-        print("Seleccione la facultad:")
+        print("\nSeleccione la facultad:")
         nombres = list(self.facultades.keys())
         for i, nombre in enumerate(nombres, 1):
             print(f"{i}. {nombre}")
@@ -129,7 +157,7 @@ class ProgramaAcademico:
                         print(f"Generando solicitud de prueba: Salones={salones}, Laboratorios={laboratorios}")
                         self.enviar_solicitud(salones, laboratorios)
                     print("Pruebas finalizadas.")
-                    continue  # Reinicia el ciclo para permitir nuevas solicitudes
+                    continue
                 else:
                     salones = int(salones_input)
                     if salones >= 0:
@@ -156,23 +184,36 @@ class ProgramaAcademico:
             "facultad": self.facultad,
             "programa": self.programa,
             "salones": salones,
-            "laboratorios": laboratorios
+            "laboratorios": laboratorios,
+            "usuario": self.usuario,
+            "password_programa": self.password_programa
         }
+        
         print(f"\n[{self.programa}] Enviando solicitud: {solicitud}")
         
-        inicio = time.time()  # Inicia el cronómetro
-        self.socket.send_json(solicitud)
-        respuesta = self.socket.recv_json()
-        fin = time.time()  # Finaliza el cronómetro
-        
-        print(f"[{self.programa}] Respuesta recibida: {respuesta}")
-        print(f"[{self.programa}] Tiempo de respuesta: {fin - inicio:.4f} segundos\n")
+        try:
+            inicio = time.time()
+            self.socket.send_json(solicitud)
+            respuesta = self.socket.recv_json()
+            fin = time.time()
+            
+            if respuesta.get("estado") in ["Error de autenticación", "Acceso denegado"]:
+                print(f"[{self.programa}] ✗ {respuesta['estado']}: {respuesta.get('mensaje', '')}")
+                print("Verifique sus credenciales")
+            else:
+                print(f"[{self.programa}] Respuesta recibida: {respuesta}")
+                print(f"[{self.programa}] Tiempo de respuesta: {fin - inicio:.4f} segundos\n")
+                
+        except Exception as e:
+            print(f"[{self.programa}] Error enviando solicitud: {e}")
 
     def ejecutar(self):
+        self.autenticar_usuario()
         programas = self.seleccionar_facultad()
         self.seleccionar_programa(programas)
 
-        print(f"\n[{self.programa}] Enviando solicitudes a {self.facultad} en el puerto {self.puerto}...\n")
+        print(f"\n[{self.programa}] Usuario: {self.usuario}")
+        print(f"[{self.programa}] Enviando solicitudes a {self.facultad} en el puerto {self.puerto}...\n")
 
         self.socket = self.context.socket(zmq.REQ)
         self.socket.connect(f"tcp://localhost:{self.puerto}")
@@ -191,8 +232,6 @@ class ProgramaAcademico:
             self.socket.close()
             self.context.term()
 
-# Ejecución
 if __name__ == "__main__":
     cliente = ProgramaAcademico()
     cliente.ejecutar()
-

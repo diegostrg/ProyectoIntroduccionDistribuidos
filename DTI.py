@@ -3,6 +3,7 @@ import json
 import os
 import threading
 import time
+from AutenticacionDTI import AutenticacionDTI
 
 class DTI:
     def __init__(self, puerto_rep=6000, backup_ip="localhost", backup_port=6006):
@@ -21,6 +22,10 @@ class DTI:
 
         self.RUTA_JSON = "recursos_dti.json"
         self.lock = threading.Lock()
+        
+        # Sistema de autenticación
+        self.auth = AutenticacionDTI()
+        self.auth.mostrar_credenciales_iniciales()
 
         print(f"[DTI] Servidor iniciado en puerto {puerto_rep} y esperando solicitudes...")
         self._inicializar_recursos()
@@ -68,8 +73,32 @@ class DTI:
             return {"estado": "OK"}
     
         if solicitud.get("tipo") == "conexion":
-            print(f"[DTI] Facultad conectada: {solicitud['facultad']}")
-            return {"estado": "Conexión aceptada"}
+            nombre_facultad = solicitud.get("facultad")
+            password_facultad = solicitud.get("password")
+            
+            # Verificar autenticación de la facultad
+            if not password_facultad:
+                print(f"[DTI] ✗ Conexión rechazada: Falta contraseña para {nombre_facultad}")
+                return {"estado": "Autenticación requerida", "mensaje": "Falta contraseña"}
+            
+            if self.auth.verificar_facultad(nombre_facultad, password_facultad):
+                print(f"[DTI] ✓ Facultad autenticada: {nombre_facultad}")
+                return {"estado": "Conexión aceptada", "mensaje": "Autenticación exitosa"}
+            else:
+                print(f"[DTI] ✗ Autenticación fallida para: {nombre_facultad}")
+                return {"estado": "Acceso denegado", "mensaje": "Credenciales inválidas"}
+    
+        # Verificar que la solicitud venga de una facultad autenticada
+        nombre_facultad = solicitud.get("facultad")
+        password_facultad = solicitud.get("password_facultad")
+        
+        if not password_facultad or not self.auth.verificar_facultad(nombre_facultad, password_facultad):
+            print(f"[DTI] ✗ Solicitud rechazada: Facultad no autenticada - {nombre_facultad}")
+            return {
+                "facultad": nombre_facultad,
+                "estado": "Acceso denegado",
+                "mensaje": "Facultad no autenticada"
+            }
     
         with self.lock:
             recursos = self.cargar_recursos()

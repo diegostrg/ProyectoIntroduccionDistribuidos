@@ -3,6 +3,7 @@ import json
 import os
 import threading
 import time
+from autenticacion_DTI import AutenticacionDTI
 
 class DTIBackup:
     def __init__(self, puerto_rep=5999, sync_port=6006, dti_ip="localhost", dti_sync_port=6007):
@@ -20,6 +21,9 @@ class DTIBackup:
 
         self.RUTA_JSON = "recursos_backup.json"
         self.lock = threading.Lock()
+        
+        # Sistema de autenticación (usa el mismo archivo que DTI)
+        self.auth = AutenticacionDTI()
 
         print(f"[DTIBackup] Servidor de respaldo iniciado en puerto {puerto_rep}")
         print(f"[DTIBackup] Escuchando sincronización en puerto {sync_port}")
@@ -73,8 +77,32 @@ class DTIBackup:
             return {"estado": "OK"}
 
         if solicitud.get("tipo") == "conexion":
-            print(f"[DTIBackup] Facultad conectada: {solicitud['facultad']}")
-            return {"estado": "Conexión aceptada"}
+            nombre_facultad = solicitud.get("facultad")
+            password_facultad = solicitud.get("password")
+            
+            # Verificar autenticación de la facultad
+            if not password_facultad:
+                print(f"[DTIBackup] ✗ Conexión rechazada: Falta contraseña para {nombre_facultad}")
+                return {"estado": "Autenticación requerida", "mensaje": "Falta contraseña"}
+            
+            if self.auth.verificar_facultad(nombre_facultad, password_facultad):
+                print(f"[DTIBackup] ✓ Facultad autenticada: {nombre_facultad}")
+                return {"estado": "Conexión aceptada", "mensaje": "Autenticación exitosa"}
+            else:
+                print(f"[DTIBackup] ✗ Autenticación fallida para: {nombre_facultad}")
+                return {"estado": "Acceso denegado", "mensaje": "Credenciales inválidas"}
+
+        # Verificar que la solicitud venga de una facultad autenticada
+        nombre_facultad = solicitud.get("facultad")
+        password_facultad = solicitud.get("password_facultad")
+        
+        if not password_facultad or not self.auth.verificar_facultad(nombre_facultad, password_facultad):
+            print(f"[DTIBackup] ✗ Solicitud rechazada: Facultad no autenticada - {nombre_facultad}")
+            return {
+                "facultad": nombre_facultad,
+                "estado": "Acceso denegado",
+                "mensaje": "Facultad no autenticada"
+            }
 
         with self.lock:
             recursos = self.cargar_recursos()
