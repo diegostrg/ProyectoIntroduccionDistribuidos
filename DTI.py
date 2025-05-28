@@ -5,15 +5,16 @@ import threading
 import time
 
 class DTI:
-    def __init__(self, puerto_rep=6000):
+    def __init__(self, puerto_rep=6000, backup_ip="localhost", backup_port=6002):
         self.context = zmq.Context()
         self.receptor = self.context.socket(zmq.REP)
         self.receptor.bind(f"tcp://*:{puerto_rep}")
 
-        # Define la ruta del archivo JSON
-        self.RUTA_JSON = "recursos.json"
+        # Socket PUSH para sincronizar con el backup
+        self.push_backup = self.context.socket(zmq.PUSH)
+        self.push_backup.connect(f"tcp://{backup_ip}:{backup_port}")
 
-        # Inicializa un lock para manejar concurrencia
+        self.RUTA_JSON = "recursos.json"
         self.lock = threading.Lock()
 
         print("[DTI] Servidor iniciado y esperando solicitudes...")
@@ -35,6 +36,15 @@ class DTI:
     def guardar_recursos(self, data):
         with open(self.RUTA_JSON, 'w') as f:
             json.dump(data, f, indent=4)
+        # Sincroniza con el backup cada vez que se actualiza el archivo
+        self.sincronizar_backup(data)
+
+    def sincronizar_backup(self, data):
+        try:
+            self.push_backup.send_json(data)
+            print("[DTI] Sincronización enviada al backup.")
+        except Exception as e:
+            print(f"[DTI] Error al sincronizar con backup: {e}")
 
     def procesar_solicitud(self, solicitud):
         if solicitud.get("tipo") == "conexion":
@@ -73,16 +83,17 @@ class DTI:
                 solicitud = self.receptor.recv_json()
                 print(f"[DTI] Nueva solicitud recibida: {solicitud}")
 
-                inicio = time.time()  # Inicia el cronómetro
+                inicio = time.time()
                 respuesta = self.procesar_solicitud(solicitud)
-                fin = time.time()  # Finaliza el cronómetro
+                fin = time.time()
 
                 print(f"[DTI] Tiempo de procesamiento de la solicitud: {fin - inicio:.4f} segundos")
-                self.receptor.send_json(respuesta)  # Enviar respuesta al solicitante
+                self.receptor.send_json(respuesta)
         except KeyboardInterrupt:
             print("\n[DTI] Servidor detenido.")
         finally:
             self.receptor.close()
+            self.push_backup.close()
             self.context.term()
 
 if __name__ == "__main__":
