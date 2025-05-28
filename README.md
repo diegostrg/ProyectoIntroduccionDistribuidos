@@ -3,12 +3,12 @@ To Do List
 - Terminar de modificar diagramas
 - Modificar la información de los incisos que les falta explicación: Añadir más explicación a cada imagen de los diagramas en el documento.
 - Eliminar la duplicidad de Diagramas (Nos quedamos con el Load Balancing Broker)
-(YA) - Poner comandos para hacer pruebas en los programas (Enviar X cantidad de Solicitudes).
-(YA) - Añadir la conexión entre HealthCheck, Facultades y los servidores. Que funcione el estar revisando el estado del servidor.
-(YA) - Añadir conexión de Facultades a Load Balancing Broker, y del broker a los servidores.
+- Poner comandos para hacer pruebas en los programas (Enviar X cantidad de Solicitudes). (YA)
+- Añadir la conexión entre HealthCheck, Facultades y los servidores. Que funcione el estar revisando el estado del servidor. (YA)
+- Añadir conexión de Facultades a Load Balancing Broker, y del broker a los servidores. (YA)
 - Añadir requisitos de Seguridad (Encriptado de Contraseñas) Y ALGUN OTRO PQ ESO DA LASTIMA
 - Poner más pruebas en el protocolo de pruebas (Pruebas de explotar el servidor, explotar el backup, explotar el broker, etc)
-(YA) - Implementar una librería de Gráficas para medir rendimiento.
+- Implementar una librería de Gráficas para medir rendimiento. (YA)
 
 ---- Una vez que ya el programa esté al 100% si hacemos la explicación del código para no tener que estar haciendo y cambiando eso
 
