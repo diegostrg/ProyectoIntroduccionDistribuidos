@@ -4,12 +4,6 @@ import os
 import threading
 import time
 
-# ESTE ES EL DTIBACKUP
-# Es el servidor de RESPALDO del DTI. PERO DEBE FUNCIONAR COMO UN SERVIDOR INDEPENDIENTE.
-# Es decir, no depende del DTI principal, pero se sincroniza con él.
-# SI EL DTI PRINCIPAL FALLA, ESTE DEBE PODER SEGUIR ATENDIENDO SOLICITUDES.
-# Debe funcionar en cualquier computadora de la red, y debe poder recibir solicitudes de facultades en su puerto 5999.
-# No necesita que este el DTI en la misma computadora, pero debe poder conectarse a él para sincronizar recursos.
 class DTIBackup:
     def __init__(self, puerto_rep=5999, sync_port=6006, dti_ip="localhost", dti_sync_port=6007):
         self.context = zmq.Context()
@@ -20,7 +14,7 @@ class DTIBackup:
         self.pull_sync = self.context.socket(zmq.PULL)
         self.pull_sync.bind(f"tcp://*:{sync_port}")
 
-        # Socket PUSH para enviar sincronización al DTI principal (opcional)
+        # Socket PUSH para enviar sincronización al DTI principal
         self.push_dti = self.context.socket(zmq.PUSH)
         self.push_dti.connect(f"tcp://{dti_ip}:{dti_sync_port}")
 
@@ -71,6 +65,10 @@ class DTIBackup:
                 time.sleep(1)
 
     def procesar_solicitud(self, solicitud):
+        if solicitud.get("tipo") == "healthcheck":
+            print("[DTIBackup] Healthcheck recibido.")
+            return {"estado": "OK"}
+
         if solicitud.get("tipo") == "conexion":
             print(f"[DTIBackup] Facultad conectada: {solicitud['facultad']}")
             return {"estado": "Conexión aceptada"}
@@ -88,9 +86,7 @@ class DTIBackup:
                 estado = "Rechazado"
 
             self.guardar_recursos(recursos)
-            # Si procesamos exitosamente, sincronizar al DTI principal
-            if estado == "Aceptado":
-                self.sincronizar_dti(recursos)
+            self.sincronizar_dti(recursos)  # Siempre intenta sincronizar al DTI
 
         respuesta = {
             "facultad": solicitud["facultad"],
