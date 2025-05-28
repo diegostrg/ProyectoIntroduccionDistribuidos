@@ -67,11 +67,11 @@ class DTIBackup:
     def procesar_solicitud(self, solicitud):
         if solicitud.get("tipo") == "healthcheck":
             print("[DTIBackup] Healthcheck recibido.")
-            return {"estado": "OK"}
+            return {"estado": "OK", "servidor": "Backup"}
 
         if solicitud.get("tipo") == "conexion":
             print(f"[DTIBackup] Facultad conectada: {solicitud['facultad']}")
-            return {"estado": "Conexión aceptada"}
+            return {"estado": "Conexión aceptada", "servidor": "Backup"}
 
         with self.lock:
             recursos = self.cargar_recursos()
@@ -93,7 +93,8 @@ class DTIBackup:
             "programa": solicitud["programa"],
             "estado": estado,
             "salones": salones,
-            "laboratorios": laboratorios
+            "laboratorios": laboratorios,
+            "servidor": "Backup"
         }
 
         print(f"[DTIBackup] Solicitud procesada: {respuesta}")
@@ -106,11 +107,7 @@ class DTIBackup:
                 solicitud = self.receptor.recv_json()
                 print(f"[DTIBackup] Nueva solicitud recibida: {solicitud}")
 
-                inicio = time.time()
                 respuesta = self.procesar_solicitud(solicitud)
-                fin = time.time()
-
-                print(f"[DTIBackup] Tiempo de procesamiento de la solicitud: {fin - inicio:.4f} segundos")
                 self.receptor.send_json(respuesta)
         except KeyboardInterrupt:
             print("\n[DTIBackup] Servidor de respaldo detenido.")

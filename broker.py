@@ -2,66 +2,65 @@ import zmq
 import threading
 import json
 
-# Configuración de puertos e IPs
-BROKER_FRONTEND_PORT = 7001  # Facultad → Broker (ROUTER)
-BROKER_BACKEND_DTI = "tcp://localhost:6000"
-BROKER_BACKEND_BACKUP = "tcp://localhost:5999"
-BROKER_SUB_HEALTHCHECK_PORT = 7000  # HealthCheck → Broker (PUB/SUB)
 
 context = zmq.Context()
 
-# Sockets
-frontend = context.socket(zmq.ROUTER)
-frontend.bind(f"tcp://*:{BROKER_FRONTEND_PORT}")
-
+# Conexiones a DTI y Backup
 backend_dti = context.socket(zmq.DEALER)
-backend_dti.connect(BROKER_BACKEND_DTI)
+backend_dti.connect("tcp://localhost:6000")  # DTI - PC1
 
 backend_backup = context.socket(zmq.DEALER)
-backend_backup.connect(BROKER_BACKEND_BACKUP)
+backend_backup.connect("tcp://localhost:5999")  # Backup - PC3
 
-health_sub = context.socket(zmq.SUB)
-health_sub.connect(f"tcp://localhost:{BROKER_SUB_HEALTHCHECK_PORT}")
-health_sub.setsockopt_string(zmq.SUBSCRIBE, "switch")
+# Frontend para recibir solicitudes de facultades
+frontend = context.socket(zmq.ROUTER)
+frontend.bind("tcp://*:6001")  # Broker - PC2
 
-# Estado actual del servidor activo
-servidor_actual = "dti"  # Inicialmente se usa el DTI principal
-backend_activo = backend_dti
+# Subscripción al healthcheck (notificación de servidores activos)
+subscriber = context.socket(zmq.SUB)
+subscriber.connect("tcp://localhost:7000")  # HealthCheck local
+subscriber.setsockopt_string(zmq.SUBSCRIBE, "switch")
 
-# Lock para proteger el cambio de estado
+# Diccionario para mapear servidor → socket DEALER
+servidores = {
+    "dti": backend_dti,
+    "backup": backend_backup
+}
+
+# Lista de servidores activos (actualizada por el healthcheck)
+servidores_activos = []  # CAMBIAR: Inicializar vacío, se actualiza por healthcheck
+indice_actual = 0
 lock = threading.Lock()
+mapa_respuestas = {}
 
-def escuchar_healthcheck():
-    global servidor_actual, backend_activo
+def recibir_notificaciones():
+    global servidores_activos
     while True:
-        mensaje = health_sub.recv_string()
-        _, payload = mensaje.split(" ", 1)
-        datos = json.loads(payload)
-
-        nuevo = datos.get("usar")
-        with lock:
-            if nuevo == "backup":
-                backend_activo = backend_backup
-                servidor_actual = "backup"
-                print("[Broker] Cambiado a servidor de respaldo.")
-            elif nuevo == "dti":
-                backend_activo = backend_dti
-                servidor_actual = "dti"
-                print("[Broker] Cambiado a servidor principal.")
+        try:
+            msg = subscriber.recv_string()
+            print(f"[DEBUG] Mensaje recibido del healthcheck: {msg}")
+            _, payload = msg.split(" ", 1)
+            data = json.loads(payload)
+            nuevos = data.get("activos")
+            
+            with lock:
+                # ACTIVAR: Esta línea debe estar habilitada para usar healthcheck
+                servidores_activos = nuevos if nuevos else []
+                print(f"[Broker] Servidores activos actualizados: {servidores_activos}")
+        except Exception as e:
+            print(f"[Broker] Error en notificación: {e}")
 
 def reenviar_mensajes():
+    global indice_actual
     poller = zmq.Poller()
     poller.register(frontend, zmq.POLLIN)
     poller.register(backend_dti, zmq.POLLIN)
     poller.register(backend_backup, zmq.POLLIN)
 
-    # Mapas para emparejar identidades
-    mapa_respuestas = {}
-
     while True:
         socks = dict(poller.poll())
 
-        # Solicitud entrante de alguna Facultad
+        # Solicitud de facultad
         if frontend in socks:
             identidad, _, mensaje = frontend.recv_multipart()
             try:
@@ -71,27 +70,29 @@ def reenviar_mensajes():
                 facultad = "Desconocida"
 
             with lock:
-                backend_activo.send_multipart([identidad, b'', mensaje])
+                if not servidores_activos:
+                    print("[Broker] ❌ No hay servidores activos para responder.")
+                    continue
+
+                print(f"[DEBUG] Servidores disponibles: {servidores_activos}")
+                servidor = servidores_activos[indice_actual % len(servidores_activos)]
+                print(f"[Broker] 📤 Solicitud #{indice_actual + 1} → {servidor}")
+                indice_actual += 1
+                socket_destino = servidores[servidor]
+
+                socket_destino.send_multipart([identidad, b'', mensaje])
                 mapa_respuestas[identidad] = frontend
-                print(f"[Broker] Solicitud de '{facultad}' → enviada a {servidor_actual.upper()}")
+                print(f"[Broker] Solicitud de '{facultad}' → enviada a {servidor.upper()}")
 
+        # Respuesta de DTI o Backup
+        for servidor, socket_origen in servidores.items():
+            if socket_origen in socks:
+                identidad, _, respuesta = socket_origen.recv_multipart()
+                if identidad in mapa_respuestas:
+                    mapa_respuestas[identidad].send_multipart([identidad, b'', respuesta])
+                    del mapa_respuestas[identidad]
 
-        # Respuesta desde DTI
-        if backend_dti in socks:
-            identidad, _, respuesta = backend_dti.recv_multipart()
-            if identidad in mapa_respuestas:
-                mapa_respuestas[identidad].send_multipart([identidad, b'', respuesta])
-                del mapa_respuestas[identidad]
-
-        # Respuesta desde Backup
-        if backend_backup in socks:
-            identidad, _, respuesta = backend_backup.recv_multipart()
-            if identidad in mapa_respuestas:
-                mapa_respuestas[identidad].send_multipart([identidad, b'', respuesta])
-                del mapa_respuestas[identidad]
-
-# Hilo para escuchar mensajes del healthcheck
-threading.Thread(target=escuchar_healthcheck, daemon=True).start()
-
-print("[Broker] En funcionamiento. Esperando solicitudes...")
-reenviar_mensajes()
+if __name__ == "__main__":
+    print("[Broker] En funcionamiento con balanceo Round-Robin...")
+    threading.Thread(target=recibir_notificaciones, daemon=True).start()
+    reenviar_mensajes()

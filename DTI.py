@@ -63,11 +63,11 @@ class DTI:
     def procesar_solicitud(self, solicitud):
         if solicitud.get("tipo") == "healthcheck":
             print("[DTI] Healthcheck recibido.")
-            return {"estado": "OK"}
+            return {"estado": "OK", "servidor": "DTI"}
 
         if solicitud.get("tipo") == "conexion":
             print(f"[DTI] Facultad conectada: {solicitud['facultad']}")
-            return {"estado": "Conexión aceptada"}
+            return {"estado": "Conexión aceptada", "servidor": "DTI"}
 
         with self.lock:
             recursos = self.cargar_recursos()
@@ -88,7 +88,8 @@ class DTI:
             "programa": solicitud["programa"],
             "estado": estado,
             "salones": salones,
-            "laboratorios": laboratorios
+            "laboratorios": laboratorios,
+            "servidor": "DTI"
         }
 
         print(f"[DTI] Solicitud procesada: {respuesta}")
@@ -105,14 +106,14 @@ class DTI:
                 respuesta = self.procesar_solicitud(solicitud)
                 fin = time.time()
 
-                print(f"[DTI] Tiempo de procesamiento de la solicitud: {fin - inicio:.4f} segundos")
+                # print(f"[DTI] Tiempo de procesamiento de la solicitud: {fin - inicio:.4f} segundos")
                 self.receptor.send_json(respuesta)
         except KeyboardInterrupt:
             print("\n[DTI] Servidor detenido.")
         finally:
             self.receptor.close()
+            self.pull_sync.close()
             self.push_backup.close()
-            self.pull_backup_sync.close()
             self.context.term()
 
 if __name__ == "__main__":
