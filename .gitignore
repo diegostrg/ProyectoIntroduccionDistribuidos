@@ -11,6 +11,7 @@ __pycache__/
 *.env
 *.swp
 *.swo
+*.json
 
 # Ignorar archivos de VSCode o PyCharm
 .vscode/
