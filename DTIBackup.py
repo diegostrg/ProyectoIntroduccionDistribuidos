@@ -10,7 +10,7 @@ class DTIBackup:
         self.receptor = self.context.socket(zmq.REP)
         self.receptor.bind(f"tcp://localhost:{puerto_rep}")
 
-        # Define la ruta del archivo JSON
+        # tua del json
         self.RUTA_JSON = "recursos.json"
 
         # Inicializa un lock para manejar concurrencia
