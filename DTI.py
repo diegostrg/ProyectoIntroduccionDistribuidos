@@ -5,7 +5,7 @@ import threading
 import time
 
 class DTI:
-    def __init__(self, puerto_rep=6000, backup_ip="localhost", backup_port=6002):
+    def __init__(self, puerto_rep=6000, backup_ip="localhost", backup_port=6006):
         self.context = zmq.Context()
         self.receptor = self.context.socket(zmq.REP)
         self.receptor.bind(f"tcp://*:{puerto_rep}")
@@ -14,10 +14,10 @@ class DTI:
         self.push_backup = self.context.socket(zmq.PUSH)
         self.push_backup.connect(f"tcp://{backup_ip}:{backup_port}")
 
-        self.RUTA_JSON = "recursos.json"
+        self.RUTA_JSON = "recursos_dti.json"  # Archivo separado para DTI
         self.lock = threading.Lock()
 
-        print("[DTI] Servidor iniciado y esperando solicitudes...")
+        print(f"[DTI] Servidor iniciado en puerto {puerto_rep} y esperando solicitudes...")
 
         self._inicializar_recursos()
 

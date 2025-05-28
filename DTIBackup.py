@@ -5,20 +5,28 @@ import threading
 import time
 
 class DTIBackup:
-    def __init__(self, puerto_rep=6001):
+    def __init__(self, puerto_rep=5999, sync_port=6006, dti_ip="localhost", dti_sync_port=6007):
         self.context = zmq.Context()
         self.receptor = self.context.socket(zmq.REP)
-        self.receptor.bind(f"tcp://localhost:{puerto_rep}")
+        self.receptor.bind(f"tcp://*:{puerto_rep}")
 
-        # tua del json
-        self.RUTA_JSON = "recursos.json"
+        # Socket PULL para recibir sincronización del DTI principal
+        self.pull_sync = self.context.socket(zmq.PULL)
+        self.pull_sync.bind(f"tcp://*:{sync_port}")
 
-        # Inicializa un lock para manejar concurrencia
+        # Socket PUSH para enviar sincronización al DTI principal (opcional)
+        self.push_dti = self.context.socket(zmq.PUSH)
+        self.push_dti.connect(f"tcp://{dti_ip}:{dti_sync_port}")
+
+        self.RUTA_JSON = "recursos_backup.json"  # Archivo separado para backup
         self.lock = threading.Lock()
 
-        print("[DTIBackup] Servidor de respaldo iniciado y esperando solicitudes...")
+        print(f"[DTIBackup] Servidor de respaldo iniciado en puerto {puerto_rep} y esperando solicitudes...")
 
         self._inicializar_recursos()
+
+        # Hilo para recibir sincronización del DTI principal
+        threading.Thread(target=self.recibir_sincronizacion, daemon=True).start()
 
     def _inicializar_recursos(self):
         if not os.path.exists(self.RUTA_JSON):
@@ -36,10 +44,23 @@ class DTIBackup:
         with open(self.RUTA_JSON, 'w') as f:
             json.dump(data, f, indent=4)
 
-    def sincronizar_recursos(self):
-        # Método para sincronizar recursos con el servidor principal
-        recursos_principales = self.cargar_recursos()
-        self.guardar_recursos(recursos_principales)
+    def sincronizar_dti(self, data):
+        try:
+            self.push_dti.send_json(data)
+            print("[DTIBackup] Sincronización enviada al DTI principal.")
+        except Exception as e:
+            print(f"[DTIBackup] Error al sincronizar con DTI principal: {e}")
+
+    def recibir_sincronizacion(self):
+        while True:
+            try:
+                data = self.pull_sync.recv_json()
+                with self.lock:
+                    self.guardar_recursos(data)
+                print("[DTIBackup] Recursos sincronizados desde DTI principal.")
+            except Exception as e:
+                print(f"[DTIBackup] Error recibiendo sincronización: {e}")
+                time.sleep(1)  # Evita bucle infinito en caso de error
 
     def procesar_solicitud(self, solicitud):
         if solicitud.get("tipo") == "conexion":
@@ -59,6 +80,8 @@ class DTIBackup:
                 estado = "Rechazado"
 
             self.guardar_recursos(recursos)
+            # Opcional: sincronizar de vuelta al DTI principal
+            # self.sincronizar_dti(recursos)  # Comentado para evitar bucles
 
         respuesta = {
             "facultad": solicitud["facultad"],
@@ -78,16 +101,18 @@ class DTIBackup:
                 solicitud = self.receptor.recv_json()
                 print(f"[DTIBackup] Nueva solicitud recibida: {solicitud}")
 
-                inicio = time.time()  # Inicia el cronómetro
+                inicio = time.time()
                 respuesta = self.procesar_solicitud(solicitud)
-                fin = time.time()  # Finaliza el cronómetro
+                fin = time.time()
 
                 print(f"[DTIBackup] Tiempo de procesamiento de la solicitud: {fin - inicio:.4f} segundos")
-                self.receptor.send_json(respuesta)  # Enviar respuesta al solicitante
+                self.receptor.send_json(respuesta)
         except KeyboardInterrupt:
             print("\n[DTIBackup] Servidor de respaldo detenido.")
         finally:
             self.receptor.close()
+            self.pull_sync.close()
+            self.push_dti.close()
             self.context.term()
 
 if __name__ == "__main__":
