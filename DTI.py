@@ -37,10 +37,11 @@ class DTI:
         with open(self.RUTA_JSON, 'r') as f:
             return json.load(f)
 
-    def guardar_recursos(self, data):
+    def guardar_recursos(self, data, sincronizar=True):
         with open(self.RUTA_JSON, 'w') as f:
             json.dump(data, f, indent=4)
-        self.sincronizar_backup(data)
+        if sincronizar:
+            self.sincronizar_backup(data)
 
     def sincronizar_backup(self, data):
         try:
@@ -54,7 +55,8 @@ class DTI:
             try:
                 data = self.pull_backup_sync.recv_json()
                 with self.lock:
-                    self.guardar_recursos(data)
+                    # NO sincronizar de vuelta para evitar bucle
+                    self.guardar_recursos(data, sincronizar=False)
                 print("[DTI] Recursos sincronizados desde BACKUP.")
             except Exception as e:
                 print(f"[DTI] Error recibiendo sincronización desde backup: {e}")
@@ -64,33 +66,34 @@ class DTI:
         if solicitud.get("tipo") == "healthcheck":
             print("[DTI] Healthcheck recibido.")
             return {"estado": "OK"}
-
+    
         if solicitud.get("tipo") == "conexion":
             print(f"[DTI] Facultad conectada: {solicitud['facultad']}")
             return {"estado": "Conexión aceptada"}
-
+    
         with self.lock:
             recursos = self.cargar_recursos()
-            salones = solicitud["salones"]
-            laboratorios = solicitud["laboratorios"]
-
+            salones = solicitud.get("salones", 0)
+            laboratorios = solicitud.get("laboratorios", 0)
+    
             if recursos["salones_disponibles"] >= salones and recursos["laboratorios_disponibles"] >= laboratorios:
                 recursos["salones_disponibles"] -= salones
                 recursos["laboratorios_disponibles"] -= laboratorios
                 estado = "Aceptado"
             else:
                 estado = "Rechazado"
-
-            self.guardar_recursos(recursos)
-
+    
+            # Usar el flag sincronizar=True para que sincronice con el backup
+            self.guardar_recursos(recursos, sincronizar=True)
+    
         respuesta = {
-            "facultad": solicitud["facultad"],
-            "programa": solicitud["programa"],
+            "facultad": solicitud.get("facultad", "Desconocida"),
+            "programa": solicitud.get("programa", "Desconocido"),
             "estado": estado,
             "salones": salones,
             "laboratorios": laboratorios
         }
-
+    
         print(f"[DTI] Solicitud procesada: {respuesta}")
         print(f"[DTI] Recursos restantes: Salones={recursos['salones_disponibles']}, Labs={recursos['laboratorios_disponibles']}\n")
         return respuesta
@@ -110,10 +113,14 @@ class DTI:
         except KeyboardInterrupt:
             print("\n[DTI] Servidor detenido.")
         finally:
-            self.receptor.close()
-            self.push_backup.close()
-            self.pull_backup_sync.close()
-            self.context.term()
+            print("[DTI] Cerrando conexiones...")
+            try:
+                self.receptor.close()
+                self.push_backup.close()
+                self.pull_backup_sync.close()
+                self.context.term()
+            except Exception as e:
+                print(f"[DTI] Error al cerrar conexiones: {e}")
 
 if __name__ == "__main__":
     dti = DTI()

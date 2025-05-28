@@ -42,9 +42,11 @@ class DTIBackup:
         with open(self.RUTA_JSON, 'r') as f:
             return json.load(f)
 
-    def guardar_recursos(self, data):
+    def guardar_recursos(self, data, sincronizar=True):
         with open(self.RUTA_JSON, 'w') as f:
             json.dump(data, f, indent=4)
+        if sincronizar:
+            self.sincronizar_dti(data)
 
     def sincronizar_dti(self, data):
         try:
@@ -58,7 +60,8 @@ class DTIBackup:
             try:
                 data = self.pull_sync.recv_json()
                 with self.lock:
-                    self.guardar_recursos(data)
+                    # NO sincronizar de vuelta para evitar bucle
+                    self.guardar_recursos(data, sincronizar=False)
                 print("[DTIBackup] Recursos sincronizados desde DTI principal.")
             except Exception as e:
                 print(f"[DTIBackup] Error recibiendo sincronización: {e}")
@@ -75,8 +78,8 @@ class DTIBackup:
 
         with self.lock:
             recursos = self.cargar_recursos()
-            salones = solicitud["salones"]
-            laboratorios = solicitud["laboratorios"]
+            salones = solicitud.get("salones", 0)
+            laboratorios = solicitud.get("laboratorios", 0)
 
             if recursos["salones_disponibles"] >= salones and recursos["laboratorios_disponibles"] >= laboratorios:
                 recursos["salones_disponibles"] -= salones
@@ -85,12 +88,12 @@ class DTIBackup:
             else:
                 estado = "Rechazado"
 
-            self.guardar_recursos(recursos)
-            self.sincronizar_dti(recursos)  # Siempre intenta sincronizar al DTI
+            # Usar el flag sincronizar=True para que sincronice con el DTI
+            self.guardar_recursos(recursos, sincronizar=True)
 
         respuesta = {
-            "facultad": solicitud["facultad"],
-            "programa": solicitud["programa"],
+            "facultad": solicitud.get("facultad", "Desconocida"),
+            "programa": solicitud.get("programa", "Desconocido"),
             "estado": estado,
             "salones": salones,
             "laboratorios": laboratorios
@@ -115,10 +118,14 @@ class DTIBackup:
         except KeyboardInterrupt:
             print("\n[DTIBackup] Servidor de respaldo detenido.")
         finally:
-            self.receptor.close()
-            self.pull_sync.close()
-            self.push_dti.close()
-            self.context.term()
+            print("[DTIBackup] Cerrando conexiones...")
+            try:
+                self.receptor.close()
+                self.pull_sync.close()
+                self.push_dti.close()
+                self.context.term()
+            except Exception as e:
+                print(f"[DTIBackup] Error al cerrar conexiones: {e}")
 
 if __name__ == "__main__":
     dti_backup = DTIBackup()
