@@ -8,6 +8,10 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
+import csv
+from datetime import datetime
+import os
+
 
 class Pruebador:
     def __init__(self):
@@ -41,6 +45,8 @@ class Pruebador:
         print("12. Limpiar y reinicializar archivos de recursos")
         print("13. Generar reporte de rendimiento con gráficas")
         print("14. Gráfica de utilización de recursos")
+        print("15. Prueba de failover controlado")
+        print("16. Prueba de rendimiento con logs (broker)")
         print("0.  Salir")
         print("="*60)
         
@@ -775,6 +781,145 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         print(f"✓ Reporte guardado en: {nombre_reporte}")
 
 
+    def _medir_tiempo_respuesta(self, puerto, servidor_nombre):
+        """Helper method to measure response time from a specific server"""
+        socket = None
+        try:
+            socket = self.context.socket(zmq.REQ)
+            socket.setsockopt(zmq.RCVTIMEO, 5000)  # 5 second timeout
+            socket.connect(f"tcp://localhost:{puerto}")
+            
+            solicitud = {
+                "facultad": "Facultad de Prueba Failover",
+                "programa": "Programa Test Failover",
+                "salones": random.randint(1, 5),
+                "laboratorios": random.randint(0, 2)
+            }
+            
+            inicio = time.time()
+            socket.send_json(solicitud)
+            respuesta = socket.recv_json()
+            fin = time.time()
+            
+            return fin - inicio
+            
+        except Exception as e:
+            print(f"❌ Error conectando a {servidor_nombre}: {e}")
+            return None
+        finally:
+            if socket:
+                socket.close()
+
+    def prueba_failover_controlado(self):
+        print("\n[FAILOVER] Prueba de failover controlado")
+
+        print("🔴 Paso 1: Asegurese de tener corriendo DTI, DTIBackup, Broker y HealthCheck")
+        input("➡ Presione Enter cuando este listo para continuar...")
+
+        print("🛑 Paso 2: Detenga manualmente el DTI (puerto 6000) con Ctrl+C")
+        input("➡ Presione Enter cuando el DTI esté apagado...")
+
+        print("⏳ Esperando 3 segundos para que healthcheck detecte la falla...")
+        time.sleep(3)
+
+        print("📤 Enviando solicitud al puerto 5999 (backup)...")
+        resultado = self._medir_tiempo_respuesta(5999, "Backup")
+        if resultado:
+            print(f"✅ Backup respondió en {resultado*1000:.2f}ms")
+        else:
+            print("❌ El backup no respondió")
+
+        print("✅ Paso 3: Reinicia el DTI y espera unos segundos...")
+        input("➡ Presiona Enter cuando el DTI esté encendido nuevamente...")
+
+        print("⏳ Esperando 3 segundos para verificar que aún no se use el DTI...")
+        time.sleep(3)
+
+        print("📤 Enviando otra solicitud al backup...")
+        resultado2 = self._medir_tiempo_respuesta(5999, "Backup")
+        if resultado2:
+            print(f"✅ Aún se usa el backup (correcto): {resultado2*1000:.2f}ms")
+        else:
+            print("❌ El backup falló inesperadamente")
+
+        print("🛑 Paso 4: Detén el backup para que el sistema vuelva al DTI")
+        input("➡ Presiona Enter cuando el backup esté detenido...")
+
+        print("⏳ Esperando 3 segundos para que el broker se redirija al DTI...")
+        time.sleep(3)
+
+        print("📤 Enviando solicitud al DTI (6000)...")
+        resultado3 = self._medir_tiempo_respuesta(6000, "DTI Principal")
+        if resultado3:
+            print(f"✅ DTI respondió nuevamente: {resultado3*1000:.2f}ms")
+        else:
+            print("❌ El DTI no respondió correctamente")
+
+        print("\n📊 Verificando estado de JSONs:")
+        self.comparar_archivos_recursos()
+
+    def prueba_log_rendimiento(self):
+        print("\n[Prueba 16] Recolectando datos de rendimiento desde broker...")
+        n = input("¿Cuántas solicitudes desea enviar?: ")
+        try:
+            n = int(n)
+        except ValueError:
+            print("❌ Número inválido.")
+            return
+
+        puerto_broker = 6001
+        resultados = []
+
+        for i in range(n):
+            print(f"\nSolicitud {i+1}/{n}...")
+            salones = random.randint(1, 10)
+            laboratorios = random.randint(0, 3)
+
+            solicitud = {
+                "facultad": "Facultad de Ingeniería",
+                "programa": "Programa de Ingeniería de Sistemas",
+                "salones": salones,
+                "laboratorios": laboratorios
+            }
+
+            try:
+                socket = self.context.socket(zmq.REQ)
+                socket.connect(f"tcp://localhost:{puerto_broker}")  # Broker - PC2
+
+                inicio = time.time()
+                socket.send_json(solicitud)
+                respuesta = socket.recv_json()
+                fin = time.time()
+                socket.close()
+
+                duracion_ms = (fin - inicio) * 1000
+
+                print(f"✅ Respuesta recibida en {duracion_ms:.2f} ms")
+
+                resultados.append({
+                    "timestamp": datetime.now().isoformat(timespec="seconds"),
+                    "salones": salones,
+                    "laboratorios": laboratorios,
+                    "estado": respuesta.get("estado"),
+                    "tiempo_ms": f"{duracion_ms:.2f}",
+                    "servidor": respuesta.get("servidor", "Desconocido")
+                })
+
+            except Exception as e:
+                print(f"❌ Error: {e}")
+
+        # Guardar CSV
+        os.makedirs("logs", exist_ok=True)
+        ruta = "logs/registro_solicitudes.csv"
+        with open(ruta, "w", newline="") as csvfile:
+            fieldnames = ["timestamp", "salones", "laboratorios", "estado", "tiempo_ms", "servidor"]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(resultados)
+
+        print(f"\n📁 Resultados guardados en '{ruta}'")
+
+
     def ejecutar(self):
         try:
             while True:
@@ -818,6 +963,10 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                         self.generar_reporte_rendimiento()
                     elif opcion == "14":
                         self.grafica_utilizacion_recursos()
+                    elif opcion == "15":
+                        self.prueba_failover_controlado()
+                    elif opcion == "16":
+                        self.prueba_log_rendimiento()
                     else:
                         print("❌ Opción no válida")
                     
