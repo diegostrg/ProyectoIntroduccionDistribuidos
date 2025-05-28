@@ -1,16 +1,17 @@
 import zmq
 import time
 import json
+import threading
 
-# IPs reales en tu red
-DTI_IP = "localhost"       # PC1
+# Configuración de servidores
+DTI_IP = "localhost"
 DTI_PORT = 6000
-BACKUP_IP = "localhost"    # PC3
+BACKUP_IP = "localhost"
 BACKUP_PORT = 5999
-BROKER_PUB_PORT = 7000         # se queda local en PC2
+BROKER_PUB_PORT = 7000
 
-INTERVALO = 2   # segundos entre chequeos
-TIMEOUT = 1.5   # timeout de espera
+INTERVALO = 3   # segundos entre chequeos
+TIMEOUT = 2.0   # timeout de espera
 
 context = zmq.Context()
 
@@ -18,59 +19,119 @@ context = zmq.Context()
 notificador = context.socket(zmq.PUB)
 notificador.bind(f"tcp://*:{BROKER_PUB_PORT}")
 
-# Estado inicial
-servidores_disponibles = []
+# Estado de servidores
 servidores_anteriores = []
+contador_chequeos = 0
 
-def probar_servidor(ip, puerto):
+def probar_servidor(nombre, ip, puerto):
+    """Prueba si un servidor específico está disponible"""
+    temp_socket = None
     try:
-        ctx = zmq.Context.instance()
-        temp_socket = ctx.socket(zmq.REQ)
+        temp_socket = context.socket(zmq.REQ)
         temp_socket.RCVTIMEO = int(TIMEOUT * 1000)
         temp_socket.LINGER = 0
         temp_socket.connect(f"tcp://{ip}:{puerto}")
+        
+        # Enviar healthcheck
         temp_socket.send_json({"tipo": "healthcheck"})
         respuesta = temp_socket.recv_json()
-        temp_socket.close()
-        return respuesta.get("estado") == "OK"
-    except:
-        try:
-            temp_socket.close()
-        except:
-            pass
+        
+        # Verificar respuesta válida
+        estado_ok = respuesta.get("estado") == "OK"
+        print(f"[HealthCheck] ✅ {nombre} ({ip}:{puerto}) - Respuesta: {respuesta}")
+        return estado_ok
+        
+    except zmq.Again:
+        print(f"[HealthCheck] ❌ {nombre} ({ip}:{puerto}) - Timeout")
         return False
+    except Exception as e:
+        print(f"[HealthCheck] ❌ {nombre} ({ip}:{puerto}) - Error: {e}")
+        return False
+    finally:
+        if temp_socket:
+            temp_socket.close()
 
-def notificar_broker(lista):
-    mensaje = {"activos": lista}
-    notificador.send_string("switch " + json.dumps(mensaje))
-    print(f"[HealthCheck] Notificado al broker: activos = {lista}")
+def notificar_broker(lista_activos):
+    """Notifica al broker sobre el estado de los servidores"""
+    try:
+        mensaje = {
+            "activos": lista_activos,
+            "timestamp": time.time(),
+            "total_servidores": len(lista_activos)
+        }
+        
+        # Enviar notificación
+        notificador.send_string("switch " + json.dumps(mensaje))
+        
+        estado = "🟢 ACTIVOS" if lista_activos else "🔴 SIN SERVIDORES"
+        print(f"[HealthCheck] 📡 Notificado al broker: {estado} = {lista_activos}")
+        
+    except Exception as e:
+        print(f"[HealthCheck] ❌ Error notificando al broker: {e}")
 
-print("[HealthCheck] Iniciando monitor de servidores (modo balanceo)...")
-while True:
-    time.sleep(INTERVALO)
-
-    disponibles = []
+def monitorear_servidores():
+    """Función principal de monitoreo"""
+    global servidores_anteriores, contador_chequeos
     
-    # Verifica DTI
-    print(f"[HealthCheck] Probando DTI: {DTI_IP}:{DTI_PORT}")
-    if probar_servidor(DTI_IP, DTI_PORT):
-        print("[HealthCheck] ✅ DTI activo")
-        disponibles.append("dti")
-    else:
-        print("[HealthCheck] ❌ DTI no responde")
+    print("[HealthCheck] 🚀 Iniciando monitor de servidores...")
+    print(f"[HealthCheck] ⏰ Intervalo: {INTERVALO}s | Timeout: {TIMEOUT}s")
+    print(f"[HealthCheck] 📡 Puerto notificación: {BROKER_PUB_PORT}")
+    print("=" * 60)
+    
+    # Dar tiempo al broker para conectarse
+    time.sleep(2)
+    
+    while True:
+        try:
+            contador_chequeos += 1
+            print(f"\n[HealthCheck] 🔍 Chequeo #{contador_chequeos} - {time.strftime('%H:%M:%S')}")
+            
+            servidores_disponibles = []
+            
+            # Verificar DTI Principal
+            if probar_servidor("DTI Principal", DTI_IP, DTI_PORT):
+                servidores_disponibles.append("dti")
+            
+            # Verificar DTI Backup
+            if probar_servidor("DTI Backup", BACKUP_IP, BACKUP_PORT):
+                servidores_disponibles.append("backup")
+            
+            # Mostrar resumen
+            print(f"[HealthCheck] 📊 Resultado: {len(servidores_disponibles)}/2 servidores activos")
+            
+            # Notificar siempre al broker (no solo en cambios)
+            # Esto asegura que el broker mantenga la información actualizada
+            notificar_broker(servidores_disponibles)
+            
+            # Mostrar estado si cambió
+            if servidores_disponibles != servidores_anteriores:
+                if servidores_anteriores:  # No mostrar en el primer chequeo
+                    print(f"[HealthCheck] 🔄 CAMBIO DETECTADO:")
+                    print(f"    Anterior: {servidores_anteriores}")
+                    print(f"    Actual:   {servidores_disponibles}")
+                
+                servidores_anteriores = servidores_disponibles.copy()
+            
+            # Advertencia si no hay servidores
+            if not servidores_disponibles:
+                print("[HealthCheck] ⚠️  ALERTA: Ningún servidor disponible!")
+            
+            # Esperar antes del siguiente chequeo
+            time.sleep(INTERVALO)
+            
+        except KeyboardInterrupt:
+            print("\n[HealthCheck] 🛑 Deteniendo monitor...")
+            break
+        except Exception as e:
+            print(f"[HealthCheck] ❌ Error en monitoreo: {e}")
+            time.sleep(INTERVALO)
 
-    # Verifica BACKUP
-    print(f"[HealthCheck] Probando BACKUP: {BACKUP_IP}:{BACKUP_PORT}")
-    if probar_servidor(BACKUP_IP, BACKUP_PORT):
-        print("[HealthCheck] ✅ Backup activo")
-        disponibles.append("backup")
-    else:
-        print("[HealthCheck] ❌ Backup no responde")
-
-    # Solo notifica si hay cambio respecto a la lista anterior
-    if disponibles != servidores_anteriores:
-        servidores_anteriores = disponibles.copy()
-        notificar_broker(disponibles)
-
-    if not disponibles:
-        print("[HealthCheck] ⚠️ Ningún servidor está disponible.")
+if __name__ == "__main__":
+    try:
+        monitorear_servidores()
+    except KeyboardInterrupt:
+        print("\n[HealthCheck] ✋ Monitor detenido por usuario")
+    finally:
+        notificador.close()
+        context.term()
+        print("[HealthCheck] 🔚 Recursos liberados")
