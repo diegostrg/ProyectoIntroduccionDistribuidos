@@ -17,3 +17,15 @@ To Do List
 Documento: https://livejaverianaedu-my.sharepoint.com/:w:/g/personal/al_javier_javeriana_edu_co/EXcIsUjxUXlOgbEjV4BzEWMBhmGJL0q0xGUo70W2kuig2w?rtime=hw8CqIad3Ug
 
 Pizarrón: https://miro.com/app/board/uXjVICic0yM=/
+
+orden de ejecucion:
+python DTI.py
+python DTIBackup.py
+python broker.py
+python healthcheck.py
+python facultad.py
+python programa.py
+
+en caso de salir del proceso con ctrl+z en vez de ctrl+c ejecutar los siguientes comandos:
+chmod +x kill_all.sh
+./kill_all.sh
