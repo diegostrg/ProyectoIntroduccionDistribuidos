@@ -508,8 +508,27 @@ class Pruebador:
     """
         
         for programa_key, datos in resultados_programa.items():
-            facultad_nombre = programa_key.split('_')[0] + ' ' + programa_key.split('_')[1] + ' ' + programa_key.split('_')[2]
-            programa_nombre = '_'.join(programa_key.split('_')[3:])
+            # Corregir el parsing de la clave del programa
+            try:
+                # Dividir la clave y reconstruir de forma segura
+                partes = programa_key.split('_')
+                if len(partes) >= 4:
+                    # Formato: "Facultad_de_XXX_Programa_N_de_XXX"
+                    facultad_nombre = '_'.join(partes[:3])  # "Facultad_de_XXX"
+                    programa_nombre = '_'.join(partes[3:])  # "Programa_N_de_XXX"
+                else:
+                    # Fallback si el formato es diferente
+                    facultad_nombre = "Facultad_Desconocida"
+                    programa_nombre = programa_key
+                    
+                # Limpiar nombres para mostrar
+                facultad_display = facultad_nombre.replace('_', ' ')
+                programa_display = programa_nombre.replace('_', ' ')
+                
+            except Exception as e:
+                print(f"Error procesando clave de programa: {programa_key} - {e}")
+                facultad_display = "Facultad Desconocida"
+                programa_display = programa_key
             
             tasa_exito = (datos['exitosas'] / datos['solicitudes_total'] * 100) if datos['solicitudes_total'] > 0 else 0
             
@@ -524,7 +543,7 @@ class Pruebador:
                 prom_aten = 0
             
             reporte += f"""
-    📚 {programa_nombre} ({facultad_nombre}):
+    📚 {programa_display} ({facultad_display}):
     • Solicitudes atendidas satisfactoriamente: {datos['exitosas']}/{datos['solicitudes_total']} ({tasa_exito:.1f}%)
     • Tiempo promedio respuesta: {prom_resp:.2f}ms
     • Tiempo promedio atención: {prom_aten:.2f}ms
