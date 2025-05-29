@@ -77,8 +77,33 @@ class DTIBackup:
             return {"estado": "OK", "servidor": "Backup"}
 
         if solicitud.get("tipo") == "conexion":
-            print(f"[DTIBackup] Facultad conectada: {solicitud['facultad']}")
-            return {"estado": "Conexión aceptada", "servidor": "Backup"}
+            nombre_facultad = solicitud.get("facultad")
+            password_facultad = solicitud.get("password")
+            
+            # Verificar autenticación de la facultad
+            if not password_facultad:
+                print(f"[DTIBackup] ✗ Conexión rechazada: Falta contraseña para {nombre_facultad}")
+                return {"estado": "Autenticación requerida", "mensaje": "Falta contraseña", "servidor": "Backup"}
+            
+            if self.auth.verificar_facultad(nombre_facultad, password_facultad):
+                print(f"[DTIBackup] ✓ Facultad autenticada: {nombre_facultad}")
+                return {"estado": "Conexión aceptada", "mensaje": "Autenticación exitosa", "servidor": "Backup"}
+            else:
+                print(f"[DTIBackup] ✗ Autenticación fallida para: {nombre_facultad}")
+                return {"estado": "Acceso denegado", "mensaje": "Credenciales inválidas", "servidor": "Backup"}
+
+        # Verificar que la solicitud venga de una facultad autenticada
+        nombre_facultad = solicitud.get("facultad")
+        password_facultad = solicitud.get("password_facultad")
+        
+        if not password_facultad or not self.auth.verificar_facultad(nombre_facultad, password_facultad):
+            print(f"[DTIBackup] ✗ Solicitud rechazada: Facultad no autenticada - {nombre_facultad}")
+            return {
+                "facultad": nombre_facultad,
+                "estado": "Acceso denegado",
+                "mensaje": "Facultad no autenticada",
+                "servidor": "Backup"
+            }
 
         with self.lock:
             recursos = self.cargar_recursos()
@@ -114,7 +139,11 @@ class DTIBackup:
                 solicitud = self.receptor.recv_json()
                 print(f"[DTIBackup] Nueva solicitud recibida: {solicitud}")
 
+                inicio = time.time()
                 respuesta = self.procesar_solicitud(solicitud)
+                fin = time.time()
+
+                print(f"[DTIBackup] Tiempo de procesamiento: {fin - inicio:.4f} segundos")
                 self.receptor.send_json(respuesta)
         except KeyboardInterrupt:
             print("\n[DTIBackup] Servidor de respaldo detenido.")

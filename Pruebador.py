@@ -47,6 +47,9 @@ class Pruebador:
         print("14. Gráfica de utilización de recursos")
         print("15. Prueba de failover controlado")
         print("16. Prueba de rendimiento con logs (broker)")
+        print("17. Prueba autenticación de facultades")
+        print("18. Prueba seguridad completa")
+        print("19. Información archivos de autenticación")
         print("0.  Salir")
         print("="*60)
         
@@ -920,7 +923,179 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
         print(f"\n📁 Resultados guardados en '{ruta}'")
 
-# ...existing code...
+# Pruebas de autenticacion
+
+    def prueba_autenticacion_facultades(self):
+        """Prueba el sistema de autenticación de facultades"""
+        print("\n[PRUEBA SEGURIDAD] Probando autenticación de facultades...")
+        
+        # Pruebas de autenticación
+        pruebas = [
+            {"facultad": "Facultad de Ingeniería", "password": "ingenieria2024", "esperado": True},
+            {"facultad": "Facultad de Medicina", "password": "medicina2024", "esperado": True},
+            {"facultad": "Facultad de Ingeniería", "password": "contraseña_incorrecta", "esperado": False},
+            {"facultad": "Facultad Inexistente", "password": "cualquier2024", "esperado": False},
+            {"facultad": "Facultad de Medicina", "password": "", "esperado": False},
+        ]
+        
+        servidor = input("Servidor a probar (6000=DTI, 5999=Backup, default 6000): ") or "6000"
+        
+        for i, prueba in enumerate(pruebas):
+            print(f"\nPrueba {i+1}: {prueba['facultad']}")
+            
+            socket = None
+            try:
+                socket = self.context.socket(zmq.REQ)
+                socket.setsockopt(zmq.RCVTIMEO, 5000)
+                socket.connect(f"tcp://localhost:{servidor}")
+                
+                mensaje = {
+                    "tipo": "conexion",
+                    "facultad": prueba["facultad"],
+                    "password": prueba["password"]
+                }
+                
+                socket.send_json(mensaje)
+                respuesta = socket.recv_json()
+                
+                # Verificar resultado
+                exito = respuesta.get("estado") == "Conexión aceptada"
+                
+                if exito == prueba["esperado"]:
+                    print(f"  ✅ ÉXITO: {respuesta}")
+                else:
+                    print(f"  ❌ FALLO: Esperado {prueba['esperado']}, obtuvo {exito}")
+                    print(f"     Respuesta: {respuesta}")
+                
+            except Exception as e:
+                print(f"  ❌ ERROR: {e}")
+            finally:
+                if socket:
+                    socket.close()
+
+    def prueba_seguridad_completa(self):
+        """Prueba completa del sistema de seguridad"""
+        print("\n[PRUEBA SEGURIDAD COMPLETA] Verificando todo el flujo de autenticación...")
+        
+        # 1. Probar autenticación de facultad
+        print("\n1. Probando autenticación de facultad...")
+        socket_facultad = self.context.socket(zmq.REQ)
+        socket_facultad.setsockopt(zmq.RCVTIMEO, 5000)
+        socket_facultad.connect("tcp://localhost:6000")
+        
+        mensaje_conexion = {
+            "tipo": "conexion",
+            "facultad": "Facultad de Ingeniería",
+            "password": "ingenieria2024"
+        }
+        
+        socket_facultad.send_json(mensaje_conexion)
+        respuesta_conexion = socket_facultad.recv_json()
+        socket_facultad.close()
+        
+        if respuesta_conexion.get("estado") == "Conexión aceptada":
+            print("  ✅ Facultad autenticada correctamente")
+        else:
+            print(f"  ❌ Fallo en autenticación de facultad: {respuesta_conexion}")
+            return
+        
+        # 2. Probar solicitud con autenticación completa
+        print("\n2. Probando solicitud con autenticación completa...")
+        socket_solicitud = self.context.socket(zmq.REQ)
+        socket_solicitud.setsockopt(zmq.RCVTIMEO, 5000)
+        socket_solicitud.connect("tcp://localhost:6000")
+        
+        solicitud_recursos = {
+            "facultad": "Facultad de Ingeniería",
+            "programa": "Programa de Ingeniería de Sistemas",
+            "salones": 5,
+            "laboratorios": 2,
+            "password_facultad": "ingenieria2024"
+        }
+        
+        socket_solicitud.send_json(solicitud_recursos)
+        respuesta_recursos = socket_solicitud.recv_json()
+        socket_solicitud.close()
+        
+        if respuesta_recursos.get("estado") in ["Aceptado", "Rechazado"]:
+            print(f"  ✅ Solicitud procesada: {respuesta_recursos}")
+        else:
+            print(f"  ❌ Error en solicitud: {respuesta_recursos}")
+        
+        # 3. Probar solicitud sin autenticación
+        print("\n3. Probando solicitud sin autenticación (debe fallar)...")
+        socket_no_auth = self.context.socket(zmq.REQ)
+        socket_no_auth.setsockopt(zmq.RCVTIMEO, 5000)
+        socket_no_auth.connect("tcp://localhost:6000")
+        
+        solicitud_sin_auth = {
+            "facultad": "Facultad de Ingeniería",
+            "programa": "Programa de Ingeniería de Sistemas",
+            "salones": 3,
+            "laboratorios": 1
+            # Sin password_facultad
+        }
+        
+        socket_no_auth.send_json(solicitud_sin_auth)
+        respuesta_sin_auth = socket_no_auth.recv_json()
+        socket_no_auth.close()
+        
+        if respuesta_sin_auth.get("estado") == "Acceso denegado":
+            print("  ✅ Solicitud sin autenticación rechazada correctamente")
+        else:
+            print(f"  ❌ Error: Solicitud sin autenticación debería ser rechazada: {respuesta_sin_auth}")
+
+    def mostrar_info_archivos_autenticacion(self):
+        """Muestra información sobre los archivos de autenticación"""
+        print("\n[INFO SEGURIDAD] Archivos de autenticación en el sistema:")
+        print("=" * 60)
+        
+        # Buscar archivos de autenticación
+        archivos_auth = []
+        
+        # Archivo DTI
+        if os.path.exists("autenticacion_DTI.json"):
+            archivos_auth.append("autenticacion_DTI.json")
+        
+        # Archivos de facultades
+        for archivo in os.listdir("."):
+            if archivo.startswith("autenticacion_Facultad_") and archivo.endswith(".json"):
+                archivos_auth.append(archivo)
+        
+        for archivo in archivos_auth:
+            try:
+                with open(archivo, 'r') as f:
+                    data = json.load(f)
+                
+                print(f"\n📁 {archivo}:")
+                print(f"   Versión: {data.get('version', 'N/A')}")
+                print(f"   Encriptación: {data.get('encriptacion', 'N/A')}")
+                print(f"   Iteraciones: {data.get('iteraciones', 'N/A'):,}")
+                
+                if 'credenciales' in data:
+                    credenciales = data['credenciales']
+                    print(f"   Usuarios/Facultades: {len(credenciales)}")
+                    
+                    # Mostrar algunos ejemplos (sin mostrar hashes completos)
+                    for i, cred in enumerate(list(credenciales.keys())[:3]):
+                        hash_preview = data['credenciales'][cred][:20] + "..."
+                        print(f"     {cred}: {hash_preview}")
+                    
+                    if len(credenciales) > 3:
+                        print(f"     ... y {len(credenciales) - 3} más")
+                
+                # Información del archivo
+                stat = os.stat(archivo)
+                fecha_mod = datetime.fromtimestamp(stat.st_mtime)
+                print(f"   Última modificación: {fecha_mod.strftime('%Y-%m-%d %H:%M:%S')}")
+                
+            except Exception as e:
+                print(f"❌ Error leyendo {archivo}: {e}")
+        
+        if not archivos_auth:
+            print("⚠️  No se encontraron archivos de autenticación")
+            print("   Ejecute DTI.py o facultad.py para crear los archivos")
+
 
     def ejecutar(self):
         try:
@@ -969,6 +1144,12 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                         self.prueba_failover_controlado()
                     elif opcion == "16":
                         self.prueba_log_rendimiento()
+                    elif opcion == "17":
+                        self.prueba_autenticacion_facultades()
+                    elif opcion == "18":
+                        self.prueba_seguridad_completa()
+                    elif opcion == "19":
+                        self.mostrar_info_archivos_autenticacion()
                     else:
                         print("❌ Opción no válida")
                     
