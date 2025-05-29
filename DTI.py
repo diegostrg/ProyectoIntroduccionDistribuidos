@@ -19,7 +19,7 @@ class DTI:
 
         # Socket PULL para recibir sincronización desde backup
         self.pull_backup_sync = self.context.socket(zmq.PULL)
-        self.pull_backup_sync.bind("tcp://10.43.102.243:6007")
+        self.pull_backup_sync.bind("tcp://*:6007")
         threading.Thread(target=self.recibir_sincronizacion_backup, daemon=True).start()
 
         # Socket SUB para escuchar notificaciones del HealthCheck
