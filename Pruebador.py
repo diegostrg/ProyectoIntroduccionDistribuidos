@@ -40,7 +40,6 @@ class Pruebador:
             "Facultad de Ciencias Naturales": "naturales2024",
             "Facultad de Ingeniería": "ingenieria2024",
             "Facultad de Medicina": "medicina2024",
-            "Facultad de Derecho": "derecho2024",
             "Facultad de Artes": "artes2024",
             "Facultad de Educación": "educacion2024",
             "Facultad de Ciencias Económicas": "economicas2024",
