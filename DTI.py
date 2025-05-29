@@ -20,15 +20,84 @@ class DTI:
         self.pull_backup_sync.bind("tcp://*:6007")
         threading.Thread(target=self.recibir_sincronizacion_del_backup, daemon=True).start()
 
+        # Nuevo: Socket SUB para escuchar notificaciones del HealthCheck
+        self.subscriber_healthcheck = self.context.socket(zmq.SUB)
+        self.subscriber_healthcheck.connect("tcp://localhost:6008")  # Puerto de notificaciones para DTI
+        self.subscriber_healthcheck.setsockopt_string(zmq.SUBSCRIBE, "peer_status")
+        threading.Thread(target=self.escuchar_notificaciones_healthcheck, daemon=True).start()
+
         self.RUTA_JSON = "recursos_dti.json"
         self.lock = threading.Lock()
+        self.backup_online = False  # Estado del backup
         
         # Sistema de autenticación
         self.auth = AutenticacionDTI()
         self.auth.mostrar_credenciales_iniciales()
 
         print(f"[DTI] Servidor iniciado en puerto {puerto_rep} y esperando solicitudes...")
+        print(f"[DTI] Escuchando notificaciones de HealthCheck en puerto 6008")
         self._inicializar_recursos()
+
+    def escuchar_notificaciones_healthcheck(self):
+        """Escucha notificaciones del HealthCheck sobre el estado del Backup"""
+        print("[DTI] 🎧 Iniciando escucha de notificaciones HealthCheck...")
+        
+        while True:
+            try:
+                mensaje_completo = self.subscriber_healthcheck.recv_string(zmq.NOBLOCK)
+                
+                if mensaje_completo.startswith("peer_status "):
+                    payload = mensaje_completo[12:]  # Remover "peer_status "
+                    data = json.loads(payload)
+                    
+                    if data.get("peer") == "backup":
+                        estado_backup = data.get("estado") == "online"
+                        tipo_notificacion = data.get("tipo", "peer_status")
+                        
+                        # Detectar si el backup volvió online
+                        backup_volvio = not self.backup_online and estado_backup
+                        
+                        with self.lock:
+                            self.backup_online = estado_backup
+                        
+                        if tipo_notificacion == "peer_recovery" and data.get("accion") == "sincronizar_hacia_peer":
+                            print(f"[DTI] 🔄 BACKUP HA VUELTO - Iniciando sincronización...")
+                            self.forzar_sincronizacion_completa()
+                        elif backup_volvio:
+                            print(f"[DTI] 🟢 Backup detectado online - Preparando sincronización")
+                            # Dar un momento al backup para estar completamente listo
+                            threading.Timer(2.0, self.forzar_sincronizacion_completa).start()
+                        elif not estado_backup:
+                            print(f"[DTI] 🔴 Backup detectado offline")
+                
+            except zmq.Again:
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"[DTI] ❌ Error procesando notificación HealthCheck: {e}")
+                time.sleep(1)
+
+    def forzar_sincronizacion_completa(self):
+        """Fuerza una sincronización completa con el backup"""
+        try:
+            with self.lock:
+                recursos = self.cargar_recursos()
+            
+            print(f"[DTI] 📤 Forzando sincronización completa: {recursos}")
+            self.sincronizar_backup(recursos)
+            
+            # Enviar mensaje especial indicando sincronización completa
+            mensaje_sync = {
+                "tipo": "sync_completa",
+                "recursos": recursos,
+                "timestamp": time.time(),
+                "servidor_origen": "DTI"
+            }
+            
+            self.push_backup.send_json(mensaje_sync)
+            print(f"[DTI] ✅ Sincronización completa enviada al Backup")
+            
+        except Exception as e:
+            print(f"[DTI] ❌ Error en sincronización forzada: {e}")
 
     def _inicializar_recursos(self):
         if not os.path.exists(self.RUTA_JSON):
@@ -45,7 +114,7 @@ class DTI:
     def guardar_recursos(self, data, sincronizar=True):
         with open(self.RUTA_JSON, 'w') as f:
             json.dump(data, f, indent=4)
-        if sincronizar:
+        if sincronizar and self.backup_online:
             self.sincronizar_backup(data)
 
     def sincronizar_backup(self, data):
@@ -59,9 +128,17 @@ class DTI:
         while True:
             try:
                 data = self.pull_backup_sync.recv_json()
+                
+                # Verificar si es una sincronización especial
+                if isinstance(data, dict) and data.get("tipo") == "sync_completa":
+                    print("[DTI] 📥 Recibida sincronización completa desde Backup")
+                    recursos = data.get("recursos", data)
+                else:
+                    recursos = data
+                
                 with self.lock:
                     # NO sincronizar de vuelta para evitar bucle
-                    self.guardar_recursos(data, sincronizar=False)
+                    self.guardar_recursos(recursos, sincronizar=False)
                 print("[DTI] Recursos sincronizados desde BACKUP.")
             except Exception as e:
                 print(f"[DTI] Error recibiendo sincronización desde backup: {e}")
@@ -149,6 +226,7 @@ class DTI:
                 self.receptor.close()
                 self.push_backup.close()
                 self.pull_backup_sync.close()
+                self.subscriber_healthcheck.close()
                 self.context.term()
             except Exception as e:
                 print(f"[DTI] Error al cerrar conexiones: {e}")
