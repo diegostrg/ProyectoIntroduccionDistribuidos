@@ -179,13 +179,17 @@ class Pruebador:
             ip = self._get_ip_for_port(puerto)
             socket.connect(f"tcp://{ip}:{puerto}")
             
-            mensaje_prueba = {
-                "tipo": "conexion",
-                "facultad": f"Monitor {servidor_nombre}"
-            }
+
+            # Por esta:
+            solicitud = self._crear_solicitud_autenticada(
+                facultad=self.facultad_prueba,
+                programa="Programa Test Failover",
+                salones=random.randint(1, 5),
+                laboratorios=random.randint(0, 2)
+            )
             
             inicio = time.time()
-            socket.send_json(mensaje_prueba)
+            socket.send_json(solicitud)
             respuesta = socket.recv_json()
             fin = time.time()
             
@@ -261,12 +265,12 @@ class Pruebador:
                     ip = self._get_ip_for_port(servidor['puerto'])
                     socket.connect(f"tcp://{ip}:{servidor['puerto']}")
                     
-                    solicitud = {
-                        "facultad": f"Facultad Test {i}",
-                        "programa": f"Programa Test {i}",
-                        "salones": random.randint(1, 5),
-                        "laboratorios": random.randint(1, 3)
-                    }
+                    solicitud = self._crear_solicitud_autenticada(
+                        facultad=list(self.credenciales_facultades.keys())[i % len(self.credenciales_facultades)],
+                        programa=f"Programa Test {i}",
+                        salones=random.randint(1, 5),
+                        laboratorios=random.randint(1, 3)
+                    )
                     
                     inicio = time.time()
                     socket.send_json(solicitud)
@@ -407,12 +411,12 @@ class Pruebador:
                 ip = self._get_ip_for_port(puerto)
                 socket.connect(f"tcp://{ip}:{puerto}")
                 
-                solicitud = {
-                    "facultad": f"Facultad Utilización {i}",
-                    "programa": f"Programa Util {i}",
-                    "salones": random.randint(1, 10),
-                    "laboratorios": random.randint(1, 5)
-                }
+                solicitud = self._crear_solicitud_autenticada(
+                    facultad=self.facultad_prueba,
+                    programa=f"Programa Util {i}",
+                    salones=random.randint(1, 10),
+                    laboratorios=random.randint(1, 5)
+                )
                 
                 socket.send_json(solicitud)
                 respuesta = socket.recv_json()
@@ -543,12 +547,15 @@ class Pruebador:
             solicitudes_rechazadas = 0
             
             for i in range(num_solicitudes):
-                solicitud = {
-                    "facultad": f"Facultad Prueba {i+1}",
-                    "programa": f"Programa Test {i+1}",
-                    "salones": random.randint(1, 20),
-                    "laboratorios": random.randint(1, 10)
-                }
+                facultades_disponibles = list(self.credenciales_facultades.keys())
+                facultad = facultades_disponibles[i % len(facultades_disponibles)]
+
+                solicitud = self._crear_solicitud_autenticada(
+                    facultad=facultad,
+                    programa=f"Programa Test {i+1}",
+                    salones=random.randint(1, 20),
+                    laboratorios=random.randint(1, 10)
+                )
                 
                 try:
                     inicio = time.time()
@@ -693,13 +700,16 @@ class Pruebador:
                 ip = self._get_ip_for_port(puerto)
                 socket.connect(f"tcp://{ip}:{puerto}")
                 
+                facultades_disponibles = list(self.credenciales_facultades.keys())
+                facultad = facultades_disponibles[hilo_id % len(facultades_disponibles)]
+
                 for i in range(solicitudes_por_hilo):
-                    solicitud = {
-                        "facultad": f"Facultad Stress {hilo_id}",
-                        "programa": f"Programa Stress {hilo_id}-{i}",
-                        "salones": random.randint(1, 15),
-                        "laboratorios": random.randint(1, 8)
-                    }
+                    solicitud = self._crear_solicitud_autenticada(
+                        facultad=facultad,
+                        programa=f"Programa Stress {hilo_id}-{i}",
+                        salones=random.randint(1, 15),
+                        laboratorios=random.randint(1, 8)
+                    )
                     
                     inicio = time.time()
                     socket.send_json(solicitud)
@@ -779,12 +789,12 @@ class Pruebador:
                 exitosas = 0
                 
                 for i in range(10):
-                    solicitud = {
-                        "facultad": "Facultad Reporte",
-                        "programa": f"Programa Reporte {i}",
-                        "salones": random.randint(1, 5),
-                        "laboratorios": random.randint(1, 3)
-                    }
+                    solicitud = self._crear_solicitud_autenticada(
+                        facultad=self.facultad_prueba,
+                        programa=f"Programa Reporte {i}",
+                        salones=random.randint(1, 5),
+                        laboratorios=random.randint(1, 3)
+                    )
                     
                     inicio = time.time()
                     socket.send_json(solicitud)
@@ -936,12 +946,12 @@ class Pruebador:
             salones = random.randint(1, 10)
             laboratorios = random.randint(0, 3)
 
-            solicitud = {
-                "facultad": "Facultad de Ingeniería",
-                "programa": "Programa de Ingeniería de Sistemas",
-                "salones": salones,
-                "laboratorios": laboratorios
-            }
+            solicitud = self._crear_solicitud_autenticada(
+                facultad=self.facultad_prueba,
+                programa="Programa de Ingeniería de Sistemas",
+                salones=salones,
+                laboratorios=laboratorios
+            )
 
             try:
                 socket = self.context.socket(zmq.REQ)
