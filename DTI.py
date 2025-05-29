@@ -70,36 +70,12 @@ class DTI:
     def procesar_solicitud(self, solicitud):
         if solicitud.get("tipo") == "healthcheck":
             print("[DTI] Healthcheck recibido.")
-            return {"estado": "OK"}
-    
+            return {"estado": "OK", "servidor": "DTI"}
+
         if solicitud.get("tipo") == "conexion":
-            nombre_facultad = solicitud.get("facultad")
-            password_facultad = solicitud.get("password")
-            
-            # Verificar autenticación de la facultad
-            if not password_facultad:
-                print(f"[DTI] ✗ Conexión rechazada: Falta contraseña para {nombre_facultad}")
-                return {"estado": "Autenticación requerida", "mensaje": "Falta contraseña"}
-            
-            if self.auth.verificar_facultad(nombre_facultad, password_facultad):
-                print(f"[DTI] ✓ Facultad autenticada: {nombre_facultad}")
-                return {"estado": "Conexión aceptada", "mensaje": "Autenticación exitosa"}
-            else:
-                print(f"[DTI] ✗ Autenticación fallida para: {nombre_facultad}")
-                return {"estado": "Acceso denegado", "mensaje": "Credenciales inválidas"}
-    
-        # Verificar que la solicitud venga de una facultad autenticada
-        nombre_facultad = solicitud.get("facultad")
-        password_facultad = solicitud.get("password_facultad")
-        
-        if not password_facultad or not self.auth.verificar_facultad(nombre_facultad, password_facultad):
-            print(f"[DTI] ✗ Solicitud rechazada: Facultad no autenticada - {nombre_facultad}")
-            return {
-                "facultad": nombre_facultad,
-                "estado": "Acceso denegado",
-                "mensaje": "Facultad no autenticada"
-            }
-    
+            print(f"[DTI] Facultad conectada: {solicitud['facultad']}")
+            return {"estado": "Conexión aceptada", "servidor": "DTI"}
+
         with self.lock:
             recursos = self.cargar_recursos()
             salones = solicitud.get("salones", 0)
@@ -120,7 +96,8 @@ class DTI:
             "programa": solicitud.get("programa", "Desconocido"),
             "estado": estado,
             "salones": salones,
-            "laboratorios": laboratorios
+            "laboratorios": laboratorios,
+            "servidor": "DTI"
         }
     
         print(f"[DTI] Solicitud procesada: {respuesta}")
@@ -137,19 +114,15 @@ class DTI:
                 respuesta = self.procesar_solicitud(solicitud)
                 fin = time.time()
 
-                print(f"[DTI] Tiempo de procesamiento de la solicitud: {fin - inicio:.4f} segundos")
+                # print(f"[DTI] Tiempo de procesamiento de la solicitud: {fin - inicio:.4f} segundos")
                 self.receptor.send_json(respuesta)
         except KeyboardInterrupt:
             print("\n[DTI] Servidor detenido.")
         finally:
-            print("[DTI] Cerrando conexiones...")
-            try:
-                self.receptor.close()
-                self.push_backup.close()
-                self.pull_backup_sync.close()
-                self.context.term()
-            except Exception as e:
-                print(f"[DTI] Error al cerrar conexiones: {e}")
+            self.receptor.close()
+            self.pull_sync.close()
+            self.push_backup.close()
+            self.context.term()
 
 if __name__ == "__main__":
     dti = DTI()

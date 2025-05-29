@@ -1,0 +1,11 @@
+timestamp,salones,laboratorios,estado,tiempo_ms,servidor
+2025-05-28T22:57:55,10,1,Aceptado,3.23,DTI
+2025-05-28T22:57:55,1,1,Aceptado,1.55,Backup
+2025-05-28T22:57:55,10,1,Aceptado,3.67,DTI
+2025-05-28T22:57:55,2,3,Aceptado,2.79,Backup
+2025-05-28T22:57:55,3,0,Aceptado,2.24,DTI
+2025-05-28T22:57:55,8,1,Aceptado,2.46,Backup
+2025-05-28T22:57:55,9,2,Aceptado,2.64,DTI
+2025-05-28T22:57:55,7,3,Aceptado,1.93,Backup
+2025-05-28T22:57:55,10,2,Aceptado,2.34,DTI
+2025-05-28T22:57:55,1,1,Aceptado,2.91,Backup

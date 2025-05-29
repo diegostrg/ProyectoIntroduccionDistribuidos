@@ -780,6 +780,7 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         print(reporte)
         print(f"✓ Reporte guardado en: {nombre_reporte}")
 
+# ...existing code...
 
     def _medir_tiempo_respuesta(self, puerto, servidor_nombre):
         """Helper method to measure response time from a specific server"""
@@ -919,6 +920,7 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
         print(f"\n📁 Resultados guardados en '{ruta}'")
 
+# ...existing code...
 
     def ejecutar(self):
         try:
