@@ -1,24 +1,17 @@
-To Do List
+PROYECTO SISTEMAS DISTRIBUIDOS ASIGNACION DE SALONES
 
-- Terminar de modificar diagramas
-- Modificar la información de los incisos que les falta explicación: Añadir más explicación a cada imagen de los diagramas en el documento.
-- Eliminar la duplicidad de Diagramas (Nos quedamos con el Load Balancing Broker)
-- Poner comandos para hacer pruebas en los programas (Enviar X cantidad de Solicitudes). (YA)
-- Añadir la conexión entre HealthCheck, Facultades y los servidores. Que funcione el estar revisando el estado del servidor. (YA)
-- Añadir conexión de Facultades a Load Balancing Broker, y del broker a los servidores. (YA)
-- Añadir requisitos de Seguridad (Encriptado de Contraseñas) Y ALGUN OTRO PQ ESO DA LASTIMA
-- Poner más pruebas en el protocolo de pruebas (Pruebas de explotar el servidor, explotar el backup, explotar el broker, etc)
-- Implementar una librería de Gráficas para medir rendimiento. (YA)
+hecho por:
+Javier Felipe Aldana Jaramillo
+Juan Diego Muñoz Angulo
+David Roa Neisa
 
----- Una vez que ya el programa esté al 100% si hacemos la explicación del código para no tener que estar haciendo y cambiando eso
+- Link video: https://drive.google.com/file/d/1NBQtpSjF_dJvCQev7iTPAYt0ecwQ8AqJ/view?usp=sharing
 
-- Hacer el documento de PRUEBAS. (Largo)
+- Documento: https://livejaverianaedu-my.sharepoint.com/:w:/g/personal/al_javier_javeriana_edu_co/EXcIsUjxUXlOgbEjV4BzEWMBhmGJL0q0xGUo70W2kuig2w?rtime=hw8CqIad3Ug
 
-Documento: https://livejaverianaedu-my.sharepoint.com/:w:/g/personal/al_javier_javeriana_edu_co/EXcIsUjxUXlOgbEjV4BzEWMBhmGJL0q0xGUo70W2kuig2w?rtime=hw8CqIad3Ug
+- Informe rendimiento: https://livejaverianaedu-my.sharepoint.com/:w:/g/personal/al_javier_javeriana_edu_co/EbjmPoeG3F5Ck8_rCO7X_hcBJDz6zZ0OP70T1eeCthhGbw?e=PcGjjj
 
-Pizarrón: https://miro.com/app/board/uXjVICic0yM=/
-
-orden de ejecucion (en diferentes terminales):
+- Para probar el programa, se debe ejecutar los siguientes archivos en el siguiente orden de ejecucion (en diferentes terminales):
 python DTI.py
 python DTIBackup.py
 python broker.py
@@ -26,6 +19,12 @@ python healthcheck.py
 python facultad.py
 python programa.py
 
-en caso de salir del proceso con ctrl+z en vez de ctrl+c ejecutar los siguientes comandos:
+- Si desea probar el funcionamiento del programa de una manera mas sencilla, ejecute el archivo Pruebador.py en otra terminal de la siguiente forma:
+
+python Pruebador.py
+
+Despues se le desplegara un menu con las pruebas mas importantes que pueda hacer y seleccione la que desee ejecutar.
+
+- En caso de salir del proceso con ctrl+z en vez de ctrl+c ejecutar los siguientes comandos en cualquier terminal para matar los procesos:
 chmod +x kill_all.sh
 ./kill_all.sh
