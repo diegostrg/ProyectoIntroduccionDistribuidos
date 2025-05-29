@@ -27,9 +27,7 @@ class Facultad:
         """Solicita la contraseña de la facultad al administrador"""
         print(f"\n[{self.nombre}] Sistema de autenticación")
         print("=" * 50)
-        print("Para conectar al DTI, ingrese la contraseña de la facultad:")
-        print("Contraseñas por defecto (formato: nombreXXXX2024):")
-        print("Ejemplo: ingenieria2024, medicina2024, etc.")
+        print("Ingrese la contraseña de la facultad:")
         print("=" * 50)
         
         while True:
@@ -60,7 +58,7 @@ class Facultad:
             
             if respuesta.get("estado") == "Conexión aceptada":
                 print(f"[{self.nombre}] ✓ Autenticada exitosamente en el DTI")
-                self.auth.mostrar_credenciales_iniciales()
+                #self.auth.mostrar_credenciales_iniciales()
             else:
                 print(f"[{self.nombre}] ✗ Error de autenticación: {respuesta.get('mensaje', 'Error desconocido')}")
                 print("Verifique la contraseña e intente nuevamente")

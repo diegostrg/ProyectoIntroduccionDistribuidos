@@ -19,10 +19,14 @@ class DTIBackup:
         self.push_dti = self.context.socket(zmq.PUSH)
         self.push_dti.connect(f"tcp://{dti_ip}:{dti_sync_port}")
 
-        # Nuevo: Socket SUB para escuchar notificaciones del HealthCheck
+        # Socket SUB para escuchar notificaciones del HealthCheck
         self.subscriber_healthcheck = self.context.socket(zmq.SUB)
         self.subscriber_healthcheck.connect("tcp://localhost:5998")  # Puerto de notificaciones para Backup
         self.subscriber_healthcheck.setsockopt_string(zmq.SUBSCRIBE, "peer_status")
+        # Configurar timeout para evitar bloqueos
+        self.subscriber_healthcheck.setsockopt(zmq.RCVTIMEO, 1000)  # 1 segundo timeout
+        
+        print(f"[DTIBackup] 📡 Suscrito a notificaciones HealthCheck en puerto 5998")
         threading.Thread(target=self.escuchar_notificaciones_healthcheck, daemon=True).start()
 
         self.RUTA_JSON = "recursos_backup.json"
@@ -31,6 +35,7 @@ class DTIBackup:
         
         # Sistema de autenticación (usa el mismo archivo que DTI)
         self.auth = AutenticacionDTI()
+        #self.auth.mostrar_credenciales_iniciales()
 
         print(f"[DTIBackup] Servidor de respaldo iniciado en puerto {puerto_rep}")
         print(f"[DTIBackup] Escuchando sincronización en puerto {sync_port}")
@@ -42,38 +47,92 @@ class DTIBackup:
         # Hilo para recibir sincronización del DTI principal
         threading.Thread(target=self.recibir_sincronizacion, daemon=True).start()
 
+
     def escuchar_notificaciones_healthcheck(self):
         """Escucha notificaciones del HealthCheck sobre el estado del DTI"""
-        print("[DTIBackup] 🎧 Iniciando escucha de notificaciones HealthCheck...")
+        
+        time.sleep(1)
         
         while True:
             try:
                 mensaje_completo = self.subscriber_healthcheck.recv_string(zmq.NOBLOCK)
                 
                 if mensaje_completo.startswith("peer_status "):
-                    payload = mensaje_completo[12:]  # Remover "peer_status "
+                    payload = mensaje_completo[12:]
                     data = json.loads(payload)
                     
                     if data.get("peer") == "dti":
                         estado_dti = data.get("estado") == "online"
-                        tipo_notificacion = data.get("tipo", "peer_status")
+                        
+                        # Detectar si el DTI volvió online
+                        dti_volvio = not self.dti_online and estado_dti
                         
                         with self.lock:
                             self.dti_online = estado_dti
                         
-                        if tipo_notificacion == "peer_recovery" and data.get("accion") == "sincronizar_desde_peer":
-                            print(f"[DTIBackup] 🔄 DTI HA VUELTO - Esperando sincronización...")
-                            # El DTI nos sincronizará automáticamente
-                        elif estado_dti:
-                            print(f"[DTIBackup] 🟢 DTI detectado online")
-                        else:
-                            print(f"[DTIBackup] 🔴 DTI detectado offline")
+                        # Si el DTI volvió online, enviarle nuestra información
+                        if dti_volvio:
+                            print(f"[DTIBackup] 🔄 DTI volvió online - Enviando nuestra información...")
+                            threading.Timer(2.0, self.enviar_sincronizacion_completa).start()
                 
             except zmq.Again:
-                time.sleep(0.1)
+                time.sleep(0.5)
             except Exception as e:
                 print(f"[DTIBackup] ❌ Error procesando notificación HealthCheck: {e}")
                 time.sleep(1)
+
+    def enviar_sincronizacion_completa(self):
+        """Envía sincronización completa al DTI cuando vuelve online"""
+        try:
+            with self.lock:
+                recursos = self.cargar_recursos()
+            
+            print(f"[DTIBackup] 📤 Enviando sincronización completa al DTI: {recursos}")
+            self.sincronizar_dti(recursos)
+            
+        except Exception as e:
+            print(f"[DTIBackup] ❌ Error enviando sincronización completa: {e}")
+
+    def recibir_sincronizacion(self):
+        while True:
+            try:
+                data = self.pull_sync.recv_json()
+                
+                # Solo procesar sincronización si el DTI está online
+                if self.dti_online:
+                    with self.lock:
+                        # NO sincronizar de vuelta para evitar bucle
+                        self.guardar_recursos(data, sincronizar=False)
+                    print("[DTIBackup] Recursos sincronizados desde DTI principal.")
+                else:
+                    print("[DTIBackup] ⚠️ DTI offline - Ignorando sincronización entrante")
+                    
+            except Exception as e:
+                print(f"[DTIBackup] Error recibiendo sincronización: {e}")
+                time.sleep(1)
+
+    def forzar_sincronizacion_completa(self):
+        """Fuerza una sincronización completa con el DTI (equivalente al DTI pero hacia DTI)"""
+        try:
+            with self.lock:
+                recursos = self.cargar_recursos()
+            
+            print(f"[DTIBackup] 📤 Forzando sincronización completa: {recursos}")
+            self.sincronizar_dti(recursos)
+            
+            # Enviar mensaje especial indicando sincronización completa
+            mensaje_sync = {
+                "tipo": "sync_completa",
+                "recursos": recursos,
+                "timestamp": time.time(),
+                "servidor_origen": "DTIBackup"
+            }
+            
+            self.push_dti.send_json(mensaje_sync)
+            print(f"[DTIBackup] ✅ Sincronización completa enviada al DTI")
+            
+        except Exception as e:
+            print(f"[DTIBackup] ❌ Error en sincronización forzada: {e}")
 
     def _inicializar_recursos(self):
         if not os.path.exists(self.RUTA_JSON):
@@ -100,31 +159,9 @@ class DTIBackup:
         except Exception as e:
             print(f"[DTIBackup] Error al sincronizar con DTI principal: {e}")
 
-    def recibir_sincronizacion(self):
-        while True:
-            try:
-                data = self.pull_sync.recv_json()
-                
-                # Verificar si es una sincronización especial
-                if isinstance(data, dict) and data.get("tipo") == "sync_completa":
-                    print("[DTIBackup] 📥 Recibida sincronización completa desde DTI")
-                    recursos = data.get("recursos", data)
-                    servidor_origen = data.get("servidor_origen", "DTI")
-                    print(f"[DTIBackup] 🔄 Sincronización completa desde {servidor_origen}")
-                else:
-                    recursos = data
-                
-                with self.lock:
-                    # NO sincronizar de vuelta para evitar bucle
-                    self.guardar_recursos(recursos, sincronizar=False)
-                print("[DTIBackup] Recursos sincronizados desde DTI principal.")
-            except Exception as e:
-                print(f"[DTIBackup] Error recibiendo sincronización: {e}")
-                time.sleep(1)
 
     def procesar_solicitud(self, solicitud):
         if solicitud.get("tipo") == "healthcheck":
-            print("[DTIBackup] Healthcheck recibido.")
             return {"estado": "OK", "servidor": "Backup"}
 
         if solicitud.get("tipo") == "conexion":
@@ -184,18 +221,47 @@ class DTIBackup:
         print(f"[DTIBackup] Recursos restantes: Salones={recursos['salones_disponibles']}, Labs={recursos['laboratorios_disponibles']}\n")
         return respuesta
 
+    def verificar_conexion_healthcheck(self):
+        """Método de prueba para verificar la conexión con HealthCheck"""
+        try:
+            # Crear un socket temporal para probar
+            test_socket = self.context.socket(zmq.SUB)
+            test_socket.connect("tcp://localhost:5998")
+            test_socket.setsockopt_string(zmq.SUBSCRIBE, "peer_status")
+            test_socket.setsockopt(zmq.RCVTIMEO, 2000)  # 2 segundos timeout
+            
+            print("[DTIBackup] 🧪 Probando conexión con HealthCheck...")
+            
+            # Intentar recibir un mensaje
+            try:
+                mensaje = test_socket.recv_string()
+                print(f"[DTIBackup] ✅ Mensaje HealthCheck recibido en prueba: {mensaje}")
+            except zmq.Again:
+                print("[DTIBackup] ⏰ No se recibieron mensajes HealthCheck en 2 segundos")
+            
+            test_socket.close()
+            
+        except Exception as e:
+            print(f"[DTIBackup] ❌ Error en verificación HealthCheck: {e}")
+
     def ejecutar(self):
         try:
             while True:
                 solicitud = self.receptor.recv_json()
-                print(f"[DTIBackup] Nueva solicitud recibida: {solicitud}")
 
-                inicio = time.time()
-                respuesta = self.procesar_solicitud(solicitud)
-                fin = time.time()
+                if solicitud.get("tipo") != "healthcheck":
+                    print(f"[DTIBackup] Nueva solicitud recibida: {solicitud}")
 
-                print(f"[DTIBackup] Tiempo de procesamiento: {fin - inicio:.4f} segundos")
-                self.receptor.send_json(respuesta)
+                # Solo mostrar tiempo de procesamiento para solicitudes que NO sean healthcheck
+                if solicitud.get("tipo") == "healthcheck":
+                    respuesta = self.procesar_solicitud(solicitud)
+                    self.receptor.send_json(respuesta)
+                else:
+                    inicio = time.time()
+                    respuesta = self.procesar_solicitud(solicitud)
+                    fin = time.time()
+                    print(f"[DTIBackup] Tiempo de procesamiento: {fin - inicio:.4f} segundos")
+                    self.receptor.send_json(respuesta)
         except KeyboardInterrupt:
             print("\n[DTIBackup] Servidor de respaldo detenido.")
         finally:

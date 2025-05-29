@@ -94,13 +94,6 @@ class ProgramaAcademico:
         print("\n" + "="*50)
         print("SISTEMA DE AUTENTICACIÓN")
         print("="*50)
-        print("Credenciales por defecto disponibles:")
-        print("Usuario: programa1 | Contraseña: prog123")
-        print("Usuario: programa2 | Contraseña: prog456") 
-        print("Usuario: programa3 | Contraseña: prog789")
-        print("Usuario: admin_facultad | Contraseña: admin2024")
-        print("Usuario: estudiante_test | Contraseña: test123")
-        print("="*50)
         
         while True:
             self.usuario = input("Usuario: ").strip()
