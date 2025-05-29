@@ -1,0 +1,16 @@
+{
+    "version": "2.0",
+    "facultad": "Facultad de Ciencias Sociales",
+    "encriptacion": "PBKDF2-SHA256",
+    "iteraciones": 100000,
+    "salt_size": 32,
+    "credenciales": {
+        "programa1": "pWfKg/rAWKi+l6PY0XtRiHxPeTLNFKbj9KpEzHszECzUl1iuHd2ybWEd0IvPV0ILVcYoA1ViqTjQwkOnEBW/fg==",
+        "programa2": "F8IHyV/ZIxEVU2CpDBgVcQ4Kot+FXJ/woLXSI/84smycXOcZSawyXw2JngTdPGVGnrFdzhbf1i+2lyI9KbIHrg==",
+        "programa3": "qUuqAJaw7KeGsYIHEEkfpfwrp500u12Kh3/zGatvbi/4Tox3AtHBJChkL8nlhAhiFdOFEDkumLJLBA6ZufEAYQ==",
+        "admin_facultad": "b9VQtYfjVMTg+5iDxd3IdDGH6SHg0OT04HW6/cu/5KJO6sVFmJthH4fRc5BkQ10HzoepTh9ztaGv/yn+0fnKEg==",
+        "estudiante_test": "UEA+/d7VwPkihSf0tDFMa4dY402LJztnElGfb18J91COpNNU8GMmFdFjnOAByT5nLRho216PrHtYR+KGSd4k3A==",
+        "coordinador": "fOWvjHz2AsBoKrGu59yo3mBnryMaMVHiRUlNmSQSs648grMs9WwpWWY337JFLXDCXOm82loNZQplu0RgjgpQtw==",
+        "profesor": "AN/P+R+uxTLn3Du3rG6+JLC73QDrwRkMR19mXXo2luakzvejZxOSWDLh4QpjWDClqpPHB56Y5/Grdeh58av23A=="
+    }
+}

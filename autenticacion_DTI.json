@@ -1,0 +1,18 @@
+{
+    "version": "2.0",
+    "encriptacion": "PBKDF2-SHA256",
+    "iteraciones": 100000,
+    "salt_size": 32,
+    "credenciales": {
+        "Facultad de Ciencias Sociales": "esjLHl2owIPiQHm/SRJU/tVE2V87TfQ0JW61fX9L+Z0l8AmsGCHd/bZ2OekBKZQ10MaKgiGSGerZgR95Or2q5g==",
+        "Facultad de Ciencias Naturales": "cU4o8lRCZMbtkbXvjLBUGqq+B60xSTOHhr98TXDe9GU4Rv80nYhSHWjxhq8P5UqGkk3ky+RXuX5dvY8imYbPDg==",
+        "Facultad de Ingenier\u00eda": "14b2IBeNE32xKykxoXl0rZnLYDNJpDfOKfZ88ze+ipyPQ0qUpP58cGgLLJ5QmXgRvtnxvuQ0J6sl+xIhhWKvJg==",
+        "Facultad de Medicina": "+N/xS68xvEJTWJgqX4JkjDVBl6JGkC5XxLsH3Bbv23NJ53snysBfY2Ns7KWe8XFpgjyqTPXQYgKih7NFls7nqg==",
+        "Facultad de Derecho": "3DLUyvXOiBYfpEtyVw6It4HFxp7JL1lXllauUY7B1cqY75XZZr42N7mr5jF4m5hOvQde7BbIYtwj/U8jkEOcUQ==",
+        "Facultad de Artes": "AnhdW7A2P2sTjyy1iOz72p6D4v692mPQRaHPYsYf3FvlSTX2DEc2n6JseLHUDQiQ65933zTqOvtXBN/5DuSl0Q==",
+        "Facultad de Educaci\u00f3n": "qhvNLwYDypT9LH7IRufl7oM5XG4rRJ+hBFgExOhDJ5xJjvTvzlk7m49YgSCzhPjppsyANxdVONYWD6xFc9a2Cg==",
+        "Facultad de Ciencias Econ\u00f3micas": "8DamqQEchf5haXBQQJowUSqm+aTPYdbxTbcAXT+shCB4u3UHBXnxzQSuyQWxvGr5QDIrvq+F+A3HGg2uzmgLmw==",
+        "Facultad de Arquitectura": "Nxo0SN21o/uw0nMIYRacRigqrN+shzkB/oHJg5hZORlvi8ySgyd+qQ1o43NVwqDEI9o/5uG3/y98wOwAmxITPQ==",
+        "Facultad de Tecnolog\u00eda": "dH5ldgU2Rsz7O7F2ZLi5MvB3ivzTRg08Nq1/c1M76aw6FP3z6GCkWsp70lgGmZGKpOla9vDMfTuxxwYp6cee5w=="
+    }
+}
