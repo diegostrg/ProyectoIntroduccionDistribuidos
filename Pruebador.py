@@ -276,7 +276,7 @@ class Pruebador:
                 estado = respuesta.get("estado", "Error")
                 estados.append(estado)
                 
-                servidor_usado = respuesta.get("servidor", "Desconocido")
+                servidor_usado = respuesta.get("servidor", "Desconocido").lower()
                 servidores_usados.append(servidor_usado)
                 
                 # Contar servidores
@@ -338,8 +338,10 @@ class Pruebador:
         
         # Colores por servidor
         colores_servidor = {
-            'DTI': '#2E86AB',           # Azul DTI
-            'Backup': '#A23B72',        # Rojo/Rosa Backup
+            'dti': '#2E86AB',           # Azul DTI
+            'backup': '#A23B72',        # Rojo/Rosa Backup
+            'DTI': '#2E86AB',           # Azul DTI (por si acaso)
+            'Backup': '#A23B72',        # Rojo/Rosa Backup (por si acaso)
             'Error': '#F18F01',         # Naranja Error
             'Desconocido': '#C73E1D'    # Rojo Error
         }
@@ -533,6 +535,11 @@ class Pruebador:
         print(f"✓ Reporte guardado en: {nombre_reporte}")
         plt.show()
     
+
+
+
+
+
     def _crear_graficas_comparacion(self, resultados, num_pruebas):
         """Crea gráficas comparativas de rendimiento"""
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 10))
