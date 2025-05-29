@@ -110,11 +110,6 @@ class DTI:
                 solicitud = self.receptor.recv_json()
                 print(f"[DTI] Nueva solicitud recibida: {solicitud}")
 
-                inicio = time.time()
-                respuesta = self.procesar_solicitud(solicitud)
-                fin = time.time()
-
-                # print(f"[DTI] Tiempo de procesamiento de la solicitud: {fin - inicio:.4f} segundos")
                 self.receptor.send_json(respuesta)
         except KeyboardInterrupt:
             print("\n[DTI] Servidor detenido.")
