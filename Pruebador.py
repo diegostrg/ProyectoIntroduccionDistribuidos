@@ -214,6 +214,51 @@ class Pruebador:
             if solicitud.get("password_facultad") is None:
                 print(f"🐛 SOLICITUD SIN PASSWORD: {facultad}")
                 return
+            
+            # AQUÍ ESTABA FALTANDO EL CÓDIGO PRINCIPAL - AGREGARLO:
+            
+            # Medir tiempo de atención (desde solicitud hasta respuesta)
+            inicio_atencion = time.time()
+            respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+            fin_atencion = time.time()
+            
+            tiempo_atencion = fin_atencion - inicio_atencion
+            
+            # Actualizar resultados de forma thread-safe
+            with lock:
+                if tiempo_respuesta:
+                    # Datos por facultad
+                    resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                    
+                    # Datos por programa
+                    resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                    resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
+                    
+                    # Datos globales
+                    tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
+                    tiempos_atencion_globales.append(tiempo_atencion * 1000)
+                    
+                    estado = respuesta.get("estado", "Error")
+                    servidor = respuesta.get("servidor", "Desconocido")
+                    
+                    if estado == "Aceptado":
+                        resultados_por_facultad[facultad]['exitosas'] += 1
+                        resultados_por_programa[programa_key]['exitosas'] += 1
+                        status_symbol = "✅"
+                    elif estado == "Rechazado":
+                        resultados_por_facultad[facultad]['rechazadas'] += 1
+                        resultados_por_programa[programa_key]['rechazadas'] += 1
+                        status_symbol = "❌"
+                    else:
+                        resultados_por_facultad[facultad]['errores'] += 1
+                        resultados_por_programa[programa_key]['errores'] += 1
+                        status_symbol = "⚠️"
+                    
+                    print(f"    {status_symbol} {facultad.split()[-1]} - {programa_nombre} - Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
+                else:
+                    resultados_por_facultad[facultad]['errores'] += 1
+                    resultados_por_programa[programa_key]['errores'] += 1
+                    print(f"    ⚠️  {facultad.split()[-1]} - {programa_nombre} - Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
         
         print(f"\n🚀 Iniciando {len(facultades_seleccionadas) * num_programas_por_facultad * num_solicitudes_por_programa} solicitudes CONCURRENTES...")
         
