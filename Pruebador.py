@@ -57,6 +57,22 @@ class Pruebador:
         """Obtiene la IP correcta según el puerto"""
         return self.puerto_ip_map.get(puerto, "localhost")
         
+    def _crear_solicitud_autenticada(self, facultad=None, programa=None, salones=1, laboratorios=1):
+        """Crea una solicitud con autenticación válida"""
+        if facultad is None:
+            facultad = self.facultad_prueba
+        
+        # Obtener contraseña para la facultad
+        password = self.credenciales_facultades.get(facultad, self.password_facultad)
+        
+        return {
+            "facultad": facultad,
+            "programa": programa or f"Programa de {facultad}",
+            "salones": salones,
+            "laboratorios": laboratorios,
+            "password_facultad": password
+        }
+
     def mostrar_menu(self):
         print("\n" + "="*60)
         print("           SISTEMA DE PRUEBAS - DTI DISTRIBUIDO")
