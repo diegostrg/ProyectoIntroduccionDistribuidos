@@ -118,8 +118,49 @@ class Pruebador:
         print("="*80)
         
         # Seleccionar 5 facultades
-        # Seleccionar 5 facultades
-        facultades_seleccionadas = list(self.credenciales_facultades.keys())[:5]
+        # SELECCIÓN DE FACULTADES POR COMPUTADOR
+        print("\n🖥️  SELECCIÓN DE FACULTADES POR COMPUTADOR")
+        print("=" * 50)
+
+        facultades_disponibles = list(self.credenciales_facultades.keys())
+        print("\nFacultades disponibles:")
+        for i, facultad in enumerate(facultades_disponibles, 1):
+            print(f"   {i}. {facultad}")
+
+        # Preguntar cuántas facultades quiere usar este computador
+        print(f"\n💻 Este computador manejará algunas de las {len(facultades_disponibles)} facultades")
+        num_facultades_computador = int(input("¿Cuántas facultades manejará este computador? (1-9): ") or "3")
+
+        if num_facultades_computador > len(facultades_disponibles):
+            num_facultades_computador = len(facultades_disponibles)
+
+        # Seleccionar facultades específicas
+        facultades_seleccionadas = []
+        print(f"\nSeleccione {num_facultades_computador} facultades (números separados por comas):")
+
+        while len(facultades_seleccionadas) < num_facultades_computador:
+            try:
+                seleccion = input(f"Facultades {len(facultades_seleccionadas)+1} a {num_facultades_computador} (ej: 1,2,3): ")
+                indices = [int(x.strip()) - 1 for x in seleccion.split(',')]
+                
+                # Validar índices
+                for idx in indices:
+                    if 0 <= idx < len(facultades_disponibles):
+                        facultad = facultades_disponibles[idx]
+                        if facultad not in facultades_seleccionadas:
+                            facultades_seleccionadas.append(facultad)
+                        
+                        if len(facultades_seleccionadas) >= num_facultades_computador:
+                            break
+                
+                if len(facultades_seleccionadas) < num_facultades_computador:
+                    print(f"⚠️  Necesita seleccionar {num_facultades_computador - len(facultades_seleccionadas)} facultades más")
+                    
+            except (ValueError, IndexError):
+                print("❌ Formato inválido. Use números separados por comas (ej: 1,2,3)")
+
+        # Recortar si se seleccionaron más de las necesarias
+        facultades_seleccionadas = facultades_seleccionadas[:num_facultades_computador]
 
         # VERIFICACIÓN DE CREDENCIALES
         print(f"\n🔍 Facultades seleccionadas para la prueba:")
@@ -142,6 +183,14 @@ class Pruebador:
         num_programas_por_facultad = 5
         num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
         
+        print(f"\n📊 RESUMEN DE ESTE COMPUTADOR:")
+        print(f"   • {len(facultades_seleccionadas)} facultades seleccionadas")
+        print(f"   • {num_programas_por_facultad} programas por facultad")
+        print(f"   • Total solicitudes: {len(facultades_seleccionadas) * num_programas_por_facultad * num_solicitudes_por_programa}")
+
+        input("\n⏸️  Presiona ENTER para continuar con las pruebas...")
+
+
         # Estructuras para recopilar datos (thread-safe)
         import threading
         lock = threading.Lock()
@@ -291,9 +340,59 @@ class Pruebador:
         print("="*80)
         
         # Seleccionar 5 facultades
-        facultades_seleccionadas = list(self.credenciales_facultades.keys())[:5]
+                # SELECCIÓN DE FACULTADES POR COMPUTADOR
+        print("\n🖥️  SELECCIÓN DE FACULTADES POR COMPUTADOR")
+        print("=" * 50)
+        
+        facultades_disponibles = list(self.credenciales_facultades.keys())
+        print("\nFacultades disponibles:")
+        for i, facultad in enumerate(facultades_disponibles, 1):
+            print(f"   {i}. {facultad}")
+        
+        # Preguntar cuántas facultades quiere usar este computador
+        print(f"\n💻 Este computador manejará algunas de las {len(facultades_disponibles)} facultades")
+        num_facultades_computador = int(input("¿Cuántas facultades manejará este computador? (1-9): ") or "3")
+        
+        if num_facultades_computador > len(facultades_disponibles):
+            num_facultades_computador = len(facultades_disponibles)
+        
+        # Seleccionar facultades específicas
+        facultades_seleccionadas = []
+        print(f"\nSeleccione {num_facultades_computador} facultades (números separados por comas):")
+        
+        while len(facultades_seleccionadas) < num_facultades_computador:
+            try:
+                seleccion = input(f"Facultades {len(facultades_seleccionadas)+1} a {num_facultades_computador} (ej: 1,2,3): ")
+                indices = [int(x.strip()) - 1 for x in seleccion.split(',')]
+                
+                # Validar índices
+                for idx in indices:
+                    if 0 <= idx < len(facultades_disponibles):
+                        facultad = facultades_disponibles[idx]
+                        if facultad not in facultades_seleccionadas:
+                            facultades_seleccionadas.append(facultad)
+                        
+                        if len(facultades_seleccionadas) >= num_facultades_computador:
+                            break
+                
+                if len(facultades_seleccionadas) < num_facultades_computador:
+                    print(f"⚠️  Necesita seleccionar {num_facultades_computador - len(facultades_seleccionadas)} facultades más")
+                    
+            except (ValueError, IndexError):
+                print("❌ Formato inválido. Use números separados por comas (ej: 1,2,3)")
+        
+        # Recortar si se seleccionaron más de las necesarias
+        facultades_seleccionadas = facultades_seleccionadas[:num_facultades_computador]
+        
         num_programas_por_facultad = 5
         num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
+
+        print(f"\n📊 RESUMEN DE ESTE COMPUTADOR:")
+        print(f"   • {len(facultades_seleccionadas)} facultades seleccionadas")
+        print(f"   • {num_programas_por_facultad} programas por facultad")
+        print(f"   • Total solicitudes: {len(facultades_seleccionadas) * num_programas_por_facultad * num_solicitudes_por_programa}")
+        
+        input("\n⏸️  Presiona ENTER para continuar con las pruebas...")
         
         # Estructuras para recopilar datos (thread-safe)
         import threading
