@@ -6,7 +6,7 @@ import threading
 # Configuración de servidores
 DTI_IP = "10.43.103.206"
 DTI_PORT = 6000
-BACKUP_IP = "10.43.96.34"
+BACKUP_IP = "10.43.102.243"
 BACKUP_PORT = 5999
 BROKER_PUB_PORT = 7000
 
