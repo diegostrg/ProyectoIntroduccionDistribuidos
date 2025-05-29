@@ -126,7 +126,15 @@ class Pruebador:
         for i, facultad in enumerate(facultades_seleccionadas, 1):
             password = self.credenciales_facultades.get(facultad, "NO_ENCONTRADA")
             print(f"   {i}. {facultad} -> {password}")
-
+        
+        # VERIFICACIÓN ESPECÍFICA DE LA QUINTA FACULTAD
+        quinta_facultad = facultades_seleccionadas[4] if len(facultades_seleccionadas) >= 5 else None
+        if quinta_facultad:
+            print(f"\n🔍 VERIFICACIÓN ESPECIAL DE LA QUINTA FACULTAD:")
+            print(f"   Nombre: {quinta_facultad}")
+            print(f"   Credencial: {self.credenciales_facultades.get(quinta_facultad, 'NO_ENCONTRADA')}")
+            print(f"   Existe en diccionario: {quinta_facultad in self.credenciales_facultades}")
+        
         # Verificar que todas las facultades tengan credenciales
         facultades_validas = []
         for facultad in facultades_seleccionadas:
@@ -134,10 +142,13 @@ class Pruebador:
                 facultades_validas.append(facultad)
             else:
                 print(f"❌ ADVERTENCIA: {facultad} no tiene credenciales válidas")
-
+        
         if len(facultades_validas) < 5:
             print(f"⚠️  Solo {len(facultades_validas)} facultades tienen credenciales válidas")
             facultades_seleccionadas = facultades_validas
+            
+        # PAUSA PARA VERIFICAR VISUALMENTE
+        input("\n⏸️  Presiona ENTER para continuar después de verificar las credenciales...")
 
         num_programas_por_facultad = 5
         num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
@@ -174,6 +185,14 @@ class Pruebador:
         
         def procesar_solicitud(facultad, programa_nombre, programa_key, solicitud_num):
             """Función para procesar una solicitud individual en paralelo"""
+            
+            # VERIFICACIÓN PREVIA DE CREDENCIALES
+            password_verificada = self.credenciales_facultades.get(facultad, None)
+            if password_verificada is None:
+                print(f"🐛 THREAD ERROR: No hay credenciales para {facultad}")
+                print(f"🐛 Credenciales disponibles: {list(self.credenciales_facultades.keys())}")
+                return
+            
             # Configuración del escenario 1: mínimo 7 aulas y 2 labs O máximo 2 aulas y 7 labs
             if random.choice([True, False]):
                 # Opción A: Muchas aulas, pocos laboratorios
@@ -191,48 +210,10 @@ class Pruebador:
                 laboratorios=laboratorios
             )
             
-            # Medir tiempo de atención (desde solicitud hasta respuesta)
-            inicio_atencion = time.time()
-            respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
-            fin_atencion = time.time()
-            
-            tiempo_atencion = fin_atencion - inicio_atencion
-            
-            # Actualizar resultados de forma thread-safe
-            with lock:
-                if tiempo_respuesta:
-                    # Datos por facultad
-                    resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
-                    
-                    # Datos por programa
-                    resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
-                    resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
-                    
-                    # Datos globales
-                    tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
-                    tiempos_atencion_globales.append(tiempo_atencion * 1000)
-                    
-                    estado = respuesta.get("estado", "Error")
-                    servidor = respuesta.get("servidor", "Desconocido")
-                    
-                    if estado == "Aceptado":
-                        resultados_por_facultad[facultad]['exitosas'] += 1
-                        resultados_por_programa[programa_key]['exitosas'] += 1
-                        status_symbol = "✅"
-                    elif estado == "Rechazado":
-                        resultados_por_facultad[facultad]['rechazadas'] += 1
-                        resultados_por_programa[programa_key]['rechazadas'] += 1
-                        status_symbol = "❌"
-                    else:
-                        resultados_por_facultad[facultad]['errores'] += 1
-                        resultados_por_programa[programa_key]['errores'] += 1
-                        status_symbol = "⚠️"
-                    
-                    print(f"    {status_symbol} {facultad.split()[-1]} - {programa_nombre} - Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
-                else:
-                    resultados_por_facultad[facultad]['errores'] += 1
-                    resultados_por_programa[programa_key]['errores'] += 1
-                    print(f"    ⚠️  {facultad.split()[-1]} - {programa_nombre} - Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
+            # VERIFICAR QUE LA SOLICITUD SE CREÓ CORRECTAMENTE
+            if solicitud.get("password_facultad") is None:
+                print(f"🐛 SOLICITUD SIN PASSWORD: {facultad}")
+                return
         
         print(f"\n🚀 Iniciando {len(facultades_seleccionadas) * num_programas_por_facultad * num_solicitudes_por_programa} solicitudes CONCURRENTES...")
         
@@ -441,6 +422,10 @@ class Pruebador:
         """Helper para enviar solicitudes a través del broker - Thread Safe"""
         socket = None
         try:
+            # DEPURACIÓN ADICIONAL
+            facultad_solicitada = solicitud.get("facultad", "No especificada")
+            password_enviada = solicitud.get("password_facultad", "No especificada")
+            
             # Crear nuevo contexto ZMQ para cada hilo (thread-safe)
             context_local = zmq.Context()
             socket = context_local.socket(zmq.REQ)
@@ -453,10 +438,19 @@ class Pruebador:
             respuesta = socket.recv_json()
             fin = time.time()
             
+            # DEPURACIÓN: Mostrar errores específicos
+            if respuesta.get("estado") == "Error" or "Error" in str(respuesta):
+                print(f"🐛 DEBUG ERROR - Facultad: {facultad_solicitada}")
+                print(f"🐛 DEBUG ERROR - Password enviada: {password_enviada}")
+                print(f"🐛 DEBUG ERROR - Respuesta completa: {respuesta}")
+                print(f"🐛 DEBUG ERROR - Tiempo: {(fin - inicio)*1000:.1f}ms")
+            
             return respuesta, fin - inicio
             
         except Exception as e:
-            return {"estado": "Error", "mensaje": str(e)}, None
+            print(f"🐛 EXCEPCIÓN en broker - Facultad: {solicitud.get('facultad', 'Desconocida')}")
+            print(f"🐛 EXCEPCIÓN: {str(e)}")
+            return {"estado": "Error", "mensaje": str(e), "servidor": "Desconocido"}, None
         finally:
             if socket:
                 socket.close()
