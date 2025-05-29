@@ -62,7 +62,16 @@ class Pruebador:
             facultad = self.facultad_prueba
         
         # Obtener contraseña para la facultad
-        password = self.credenciales_facultades.get(facultad, self.password_facultad)
+        password = self.credenciales_facultades.get(facultad, None)
+        
+        # VERIFICACIÓN ADICIONAL
+        if password is None:
+            print(f"❌ ERROR: No se encontraron credenciales para {facultad}")
+            print(f"📋 Facultades disponibles: {list(self.credenciales_facultades.keys())}")
+            # Usar facultad por defecto como fallback
+            facultad = self.facultad_prueba
+            password = self.password_facultad
+            print(f"🔄 Usando facultad por defecto: {facultad}")
         
         return {
             "facultad": facultad,
@@ -109,7 +118,27 @@ class Pruebador:
         print("="*80)
         
         # Seleccionar 5 facultades
+        # Seleccionar 5 facultades
         facultades_seleccionadas = list(self.credenciales_facultades.keys())[:5]
+
+        # VERIFICACIÓN DE CREDENCIALES
+        print(f"\n🔍 Facultades seleccionadas para la prueba:")
+        for i, facultad in enumerate(facultades_seleccionadas, 1):
+            password = self.credenciales_facultades.get(facultad, "NO_ENCONTRADA")
+            print(f"   {i}. {facultad} -> {password}")
+
+        # Verificar que todas las facultades tengan credenciales
+        facultades_validas = []
+        for facultad in facultades_seleccionadas:
+            if facultad in self.credenciales_facultades:
+                facultades_validas.append(facultad)
+            else:
+                print(f"❌ ADVERTENCIA: {facultad} no tiene credenciales válidas")
+
+        if len(facultades_validas) < 5:
+            print(f"⚠️  Solo {len(facultades_validas)} facultades tienen credenciales válidas")
+            facultades_seleccionadas = facultades_validas
+
         num_programas_por_facultad = 5
         num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
         
