@@ -240,65 +240,44 @@ class Pruebador:
             ax.grid(True, alpha=0.3)
     
     def comparacion_rendimiento_servidores(self):
-        """Compara el rendimiento entre DTI Principal y Backup"""
-        print("\n[COMPARACIÓN] Analizando rendimiento DTI vs Backup...")
+        """Compara el rendimiento del sistema vía BROKER"""
+        print("\n[COMPARACIÓN] Analizando rendimiento del sistema vía BROKER...")
         
-        servidores = [
-            {"nombre": "DTI Principal", "puerto": 6000, "color": "blue"},
-            {"nombre": "DTI Backup", "puerto": 5999, "color": "red"}
-        ]
+        num_pruebas = int(input("Número de pruebas (default 20): ") or "20")
         
-        num_pruebas = int(input("Número de pruebas por servidor (default 20): ") or "20")
+        print(f"Probando sistema vía BROKER...")
+        tiempos = []
+        exitosas = 0
         
-        resultados = {}
-        
-        for servidor in servidores:
-            print(f"Probando {servidor['nombre']}...")
-            tiempos = []
-            exitosas = 0
+        for i in range(num_pruebas):
+            solicitud = self._crear_solicitud_autenticada(
+                facultad=list(self.credenciales_facultades.keys())[i % len(self.credenciales_facultades)],
+                programa=f"Programa Test {i}",
+                salones=random.randint(1, 5),
+                laboratorios=random.randint(1, 3)
+            )
             
-            for i in range(num_pruebas):
-                socket = None
-                try:
-                    socket = self.context.socket(zmq.REQ)
-                    socket.setsockopt(zmq.RCVTIMEO, 5000)
-                    ip = self._get_ip_for_port(servidor['puerto'])
-                    socket.connect(f"tcp://{ip}:{servidor['puerto']}")
-                    
-                    solicitud = self._crear_solicitud_autenticada(
-                        facultad=list(self.credenciales_facultades.keys())[i % len(self.credenciales_facultades)],
-                        programa=f"Programa Test {i}",
-                        salones=random.randint(1, 5),
-                        laboratorios=random.randint(1, 3)
-                    )
-                    
-                    inicio = time.time()
-                    socket.send_json(solicitud)
-                    respuesta = socket.recv_json()
-                    fin = time.time()
-                    
-                    tiempo_respuesta = (fin - inicio) * 1000  # ms
-                    tiempos.append(tiempo_respuesta)
-                    
-                    if respuesta.get("estado") == "Aceptado":
-                        exitosas += 1
-                    
-                    print(f"  Prueba {i+1}/{num_pruebas}: {tiempo_respuesta:.2f}ms")
-                    
-                except Exception as e:
-                    print(f"  Prueba {i+1}/{num_pruebas}: Error - {e}")
-                finally:
-                    if socket:
-                        socket.close()
+            respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
             
-            resultados[servidor['nombre']] = {
-                'tiempos': tiempos,
-                'exitosas': exitosas,
-                'color': servidor['color']
-            }
+            if tiempo_respuesta:
+                tiempo_respuesta_ms = tiempo_respuesta * 1000  # ms
+                tiempos.append(tiempo_respuesta_ms)
+                
+                if respuesta.get("estado") == "Aceptado":
+                    exitosas += 1
+                
+                servidor_usado = respuesta.get("servidor", "Desconocido")
+                print(f"  Prueba {i+1}/{num_pruebas}: {tiempo_respuesta_ms:.2f}ms (Servidor: {servidor_usado})")
+            else:
+                print(f"  Prueba {i+1}/{num_pruebas}: Error - {respuesta.get('mensaje', 'Desconocido')}")
         
-        # Crear gráficas comparativas
-        self._crear_graficas_comparacion(resultados, num_pruebas)
+        # Mostrar estadísticas
+        if tiempos:
+            print(f"\n--- ESTADÍSTICAS BROKER ---")
+            print(f"Pruebas exitosas: {exitosas}/{num_pruebas}")
+            print(f"Tiempo promedio: {sum(tiempos)/len(tiempos):.2f}ms")
+            print(f"Tiempo mínimo: {min(tiempos):.2f}ms")
+            print(f"Tiempo máximo: {max(tiempos):.2f}ms")
     
     def _crear_graficas_comparacion(self, resultados, num_pruebas):
         """Crea gráficas comparativas de rendimiento"""
@@ -381,13 +360,10 @@ class Pruebador:
         plt.show()
     
     def grafica_utilizacion_recursos(self):
-        """Genera gráfica de utilización de recursos a lo largo del tiempo"""
-        print("\n[UTILIZACIÓN] Generando gráfica de utilización de recursos...")
+        """Genera gráfica de utilización de recursos vía BROKER"""
+        print("\n[UTILIZACIÓN] Generando gráfica de utilización de recursos vía BROKER...")
         
-        # Simular cambios en recursos enviando solicitudes
         num_solicitudes = int(input("Número de solicitudes para simular (default 15): ") or "15")
-        servidor = input("Servidor a probar (6000=DTI, 5999=Backup, default 6000): ") or "6000"
-        puerto = int(servidor)
         
         historial_recursos = []
         timestamps = []
@@ -403,37 +379,24 @@ class Pruebador:
                     })
                     timestamps.append(datetime.now())
             
-            # Enviar solicitud
-            socket = None
-            try:
-                socket = self.context.socket(zmq.REQ)
-                socket.setsockopt(zmq.RCVTIMEO, 5000)
-                ip = self._get_ip_for_port(puerto)
-                socket.connect(f"tcp://{ip}:{puerto}")
-                
-                solicitud = self._crear_solicitud_autenticada(
-                    facultad=self.facultad_prueba,
-                    programa=f"Programa Util {i}",
-                    salones=random.randint(1, 10),
-                    laboratorios=random.randint(1, 5)
-                )
-                
-                socket.send_json(solicitud)
-                respuesta = socket.recv_json()
-                print(f"Solicitud {i+1}: {respuesta.get('estado', 'Error')}")
-                
-            except Exception as e:
-                print(f"Error en solicitud {i+1}: {e}")
-            finally:
-                if socket:
-                    socket.close()
+            # Enviar solicitud vía broker
+            solicitud = self._crear_solicitud_autenticada(
+                facultad=self.facultad_prueba,
+                programa=f"Programa Util {i}",
+                salones=random.randint(1, 10),
+                laboratorios=random.randint(1, 5)
+            )
+            
+            respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+            servidor_usado = respuesta.get("servidor", "Desconocido")
+            print(f"Solicitud {i+1}: {respuesta.get('estado', 'Error')} (Servidor: {servidor_usado})")
             
             time.sleep(0.5)  # Pausa entre solicitudes
         
-        # Crear gráfica de utilización
+        # Crear gráfica de utilización (mismo código que antes)
         if historial_recursos:
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
-            fig.suptitle('Utilización de Recursos a lo largo del Tiempo', fontsize=16)
+            fig.suptitle('Utilización de Recursos vía BROKER', fontsize=16)
             
             salones = [r['salones'] for r in historial_recursos]
             laboratorios = [r['laboratorios'] for r in historial_recursos]
@@ -442,7 +405,7 @@ class Pruebador:
             # Gráfica de líneas
             ax1.plot(tiempos, salones, 'b-o', label='Salones Disponibles', linewidth=2)
             ax1.plot(tiempos, laboratorios, 'r-o', label='Laboratorios Disponibles', linewidth=2)
-            ax1.set_title('Recursos Disponibles vs Tiempo')
+            ax1.set_title('Recursos Disponibles vs Tiempo (vía BROKER)')
             ax1.set_ylabel('Cantidad')
             ax1.legend()
             ax1.grid(True, alpha=0.3)
@@ -451,7 +414,7 @@ class Pruebador:
             # Gráfica de área apilada
             ax2.fill_between(range(len(salones)), salones, alpha=0.5, color='blue', label='Salones')
             ax2.fill_between(range(len(laboratorios)), laboratorios, alpha=0.5, color='red', label='Laboratorios')
-            ax2.set_title('Área de Utilización')
+            ax2.set_title('Área de Utilización (vía BROKER)')
             ax2.set_xlabel('Número de Solicitud')
             ax2.set_ylabel('Cantidad')
             ax2.legend()
@@ -461,12 +424,11 @@ class Pruebador:
             
             # Guardar gráfica
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"utilizacion_recursos_{timestamp}.png"
+            filename = f"utilizacion_recursos_broker_{timestamp}.png"
             plt.savefig(filename, dpi=300, bbox_inches='tight')
             print(f"\n✓ Gráfica guardada en: {filename}")
             
             plt.show()
-    
 
     def probar_conexion_dti(self):
         print("\n[PRUEBA] Probando conexión al DTI Principal...")
@@ -533,62 +495,42 @@ class Pruebador:
                 socket.close()
     
     def envio_masivo_solicitudes(self, puerto, servidor_nombre, num_solicitudes=10):
-        print(f"\n[PRUEBA] Enviando {num_solicitudes} solicitudes masivas a {servidor_nombre}...")
+        print(f"\n[PRUEBA] Enviando {num_solicitudes} solicitudes masivas a través del BROKER...")
         
-        socket = None
-        try:
-            socket = self.context.socket(zmq.REQ)
-            socket.setsockopt(zmq.RCVTIMEO, 10000)
-            ip = self._get_ip_for_port(puerto)
-            socket.connect(f"tcp://{ip}:{puerto}")
+        tiempos_respuesta = []
+        solicitudes_exitosas = 0
+        solicitudes_rechazadas = 0
+        
+        for i in range(num_solicitudes):
+            facultades_disponibles = list(self.credenciales_facultades.keys())
+            facultad = facultades_disponibles[i % len(facultades_disponibles)]
+    
+            solicitud = self._crear_solicitud_autenticada(
+                facultad=facultad,
+                programa=f"Programa Test {i+1}",
+                salones=random.randint(1, 20),
+                laboratorios=random.randint(1, 10)
+            )
             
-            tiempos_respuesta = []
-            solicitudes_exitosas = 0
-            solicitudes_rechazadas = 0
+            respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
             
-            for i in range(num_solicitudes):
-                facultades_disponibles = list(self.credenciales_facultades.keys())
-                facultad = facultades_disponibles[i % len(facultades_disponibles)]
-
-                solicitud = self._crear_solicitud_autenticada(
-                    facultad=facultad,
-                    programa=f"Programa Test {i+1}",
-                    salones=random.randint(1, 20),
-                    laboratorios=random.randint(1, 10)
-                )
+            if tiempo_respuesta:
+                tiempos_respuesta.append(tiempo_respuesta)
+            
+            if respuesta.get("estado") == "Aceptado":
+                solicitudes_exitosas += 1
+            else:
+                solicitudes_rechazadas += 1
                 
-                try:
-                    inicio = time.time()
-                    socket.send_json(solicitud)
-                    respuesta = socket.recv_json()
-                    fin = time.time()
-                    
-                    tiempo_respuesta = fin - inicio
-                    tiempos_respuesta.append(tiempo_respuesta)
-                    
-                    if respuesta.get("estado") == "Aceptado":
-                        solicitudes_exitosas += 1
-                    else:
-                        solicitudes_rechazadas += 1
-                        
-                    print(f"  Solicitud {i+1}: {respuesta['estado']} - {tiempo_respuesta:.4f}s")
-                    
-                except Exception as e:
-                    print(f"  Solicitud {i+1}: Error - {e}")
-            
-            if tiempos_respuesta:
-                print(f"\n--- RESUMEN {servidor_nombre} ---")
-                print(f"Solicitudes exitosas: {solicitudes_exitosas}")
-                print(f"Solicitudes rechazadas: {solicitudes_rechazadas}")
-                print(f"Tiempo promedio: {sum(tiempos_respuesta)/len(tiempos_respuesta):.4f}s")
-                print(f"Tiempo mínimo: {min(tiempos_respuesta):.4f}s")
-                print(f"Tiempo máximo: {max(tiempos_respuesta):.4f}s")
-            
-        except Exception as e:
-            print(f"✗ Error en envío masivo: {e}")
-        finally:
-            if socket:
-                socket.close()
+            print(f"  Solicitud {i+1}: {respuesta.get('estado', 'Error')} - {tiempo_respuesta:.4f}s" if tiempo_respuesta else f"  Solicitud {i+1}: Error")
+        
+        if tiempos_respuesta:
+            print(f"\n--- RESUMEN vía BROKER ---")
+            print(f"Solicitudes exitosas: {solicitudes_exitosas}")
+            print(f"Solicitudes rechazadas: {solicitudes_rechazadas}")
+            print(f"Tiempo promedio: {sum(tiempos_respuesta)/len(tiempos_respuesta):.4f}s")
+            print(f"Tiempo mínimo: {min(tiempos_respuesta):.4f}s")
+            print(f"Tiempo máximo: {max(tiempos_respuesta):.4f}s")
 
     def verificar_sincronizacion(self):
         print("\n[PRUEBA] Verificando sincronización entre servidores...")
@@ -685,44 +627,26 @@ class Pruebador:
                             print(f"     {key}: {val1} vs {val2}")
     
     def stress_test_concurrente(self):
-        print("\n[STRESS TEST] Prueba de solicitudes concurrentes...")
+        print("\n[STRESS TEST] Prueba de solicitudes concurrentes vía BROKER...")
         
         num_hilos = int(input("Número de hilos concurrentes (default 5): ") or "5")
         solicitudes_por_hilo = int(input("Solicitudes por hilo (default 10): ") or "10")
-        puerto = input("Puerto del servidor (6000=DTI, 5999=Backup, default 6000): ") or "6000"
-        puerto = int(puerto)
         
         def enviar_solicitudes_hilo(hilo_id):
-            socket = None
-            try:
-                socket = self.context.socket(zmq.REQ)
-                socket.setsockopt(zmq.RCVTIMEO, 15000)
-                ip = self._get_ip_for_port(puerto)
-                socket.connect(f"tcp://{ip}:{puerto}")
+            facultades_disponibles = list(self.credenciales_facultades.keys())
+            facultad = facultades_disponibles[hilo_id % len(facultades_disponibles)]
+    
+            for i in range(solicitudes_por_hilo):
+                solicitud = self._crear_solicitud_autenticada(
+                    facultad=facultad,
+                    programa=f"Programa Stress {hilo_id}-{i}",
+                    salones=random.randint(1, 15),
+                    laboratorios=random.randint(1, 8)
+                )
                 
-                facultades_disponibles = list(self.credenciales_facultades.keys())
-                facultad = facultades_disponibles[hilo_id % len(facultades_disponibles)]
-
-                for i in range(solicitudes_por_hilo):
-                    solicitud = self._crear_solicitud_autenticada(
-                        facultad=facultad,
-                        programa=f"Programa Stress {hilo_id}-{i}",
-                        salones=random.randint(1, 15),
-                        laboratorios=random.randint(1, 8)
-                    )
-                    
-                    inicio = time.time()
-                    socket.send_json(solicitud)
-                    respuesta = socket.recv_json()
-                    fin = time.time()
-                    
-                    print(f"Hilo-{hilo_id} Sol-{i}: {respuesta['estado']} ({fin-inicio:.4f}s)")
-                
-            except Exception as e:
-                print(f"Error en hilo {hilo_id}: {e}")
-            finally:
-                if socket:
-                    socket.close()
+                respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+                tiempo_str = f"({tiempo_respuesta:.4f}s)" if tiempo_respuesta else "(error)"
+                print(f"Hilo-{hilo_id} Sol-{i}: {respuesta.get('estado', 'Error')} {tiempo_str}")
         
         print(f"Iniciando {num_hilos} hilos con {solicitudes_por_hilo} solicitudes cada uno...")
         
@@ -738,105 +662,71 @@ class Pruebador:
             hilo.join()
         
         fin_total = time.time()
-        print(f"\n--- STRESS TEST COMPLETADO ---")
+        print(f"\n--- STRESS TEST COMPLETADO (vía BROKER) ---")
         print(f"Tiempo total: {fin_total - inicio_total:.4f} segundos")
         print(f"Total solicitudes: {num_hilos * solicitudes_por_hilo}")
     
-    def limpiar_reinicializar_recursos(self):
-        print("\n[LIMPIEZA] Reinicializando archivos de recursos...")
-        
-        recursos_iniciales = {
-            "salones_disponibles": 380,
-            "laboratorios_disponibles": 60
-        }
-        
-        for archivo in self.archivos_recursos:
-            try:
-                with open(archivo, 'w') as f:
-                    json.dump(recursos_iniciales, f, indent=4)
-                print(f"✓ {archivo} reinicializado")
-            except Exception as e:
-                print(f"✗ Error reinicializando {archivo}: {e}")
-        
-        print("✓ Limpieza completada")
-    
     def generar_reporte_rendimiento(self):
-        print("\n[REPORTE] Generando reporte de rendimiento...")
+        print("\n[REPORTE] Generando reporte de rendimiento vía BROKER...")
         
-        # Solicitar número de pruebas al usuario
-        num_solicitudes = int(input("Número de solicitudes por servidor (default 10): ") or "10")
-        
-        # Probar ambos servidores
-        servidores = [
-            {"nombre": "DTI Principal", "puerto": 6000},
-            {"nombre": "DTI Backup", "puerto": 5999}
-        ]
+        num_solicitudes = int(input("Número de solicitudes (default 10): ") or "10")
         
         reporte = f"""
-    REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    REPORTE DE RENDIMIENTO VÍA BROKER - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     {'='*70}
-    Número de solicitudes por servidor: {num_solicitudes}
-
+    Número de solicitudes: {num_solicitudes}
+    
     """
         
-        for servidor in servidores:
-            print(f"Probando {servidor['nombre']} con {num_solicitudes} solicitudes...")
+        print(f"Probando sistema vía BROKER con {num_solicitudes} solicitudes...")
+        
+        tiempos = []
+        exitosas = 0
+        rechazadas = 0
+        errores = 0
+        servidores_usados = {}
+        
+        for i in range(num_solicitudes):
+            facultades_disponibles = list(self.credenciales_facultades.keys())
+            facultad = facultades_disponibles[i % len(facultades_disponibles)]
             
-            socket = None
-            try:
-                socket = self.context.socket(zmq.REQ)
-                socket.setsockopt(zmq.RCVTIMEO, 5000)
-                ip = self._get_ip_for_port(servidor['puerto'])
-                socket.connect(f"tcp://{ip}:{servidor['puerto']}")
+            solicitud = self._crear_solicitud_autenticada(
+                facultad=facultad,
+                programa=f"Programa Reporte {i}",
+                salones=random.randint(1, 5),
+                laboratorios=random.randint(1, 3)
+            )
+            
+            respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+            
+            if tiempo_respuesta:
+                tiempos.append(tiempo_respuesta)
                 
-                tiempos = []
-                exitosas = 0
-                rechazadas = 0
-                errores = 0
+                if respuesta.get("estado") == "Aceptado":
+                    exitosas += 1
+                elif respuesta.get("estado") == "Rechazado":
+                    rechazadas += 1
                 
-                for i in range(num_solicitudes):
-                    # Rotar entre facultades para variar las pruebas
-                    facultades_disponibles = list(self.credenciales_facultades.keys())
-                    facultad = facultades_disponibles[i % len(facultades_disponibles)]
-                    
-                    solicitud = self._crear_solicitud_autenticada(
-                        facultad=facultad,
-                        programa=f"Programa Reporte {i}",
-                        salones=random.randint(1, 5),
-                        laboratorios=random.randint(1, 3)
-                    )
-                    
-                    try:
-                        inicio = time.time()
-                        socket.send_json(solicitud)
-                        respuesta = socket.recv_json()
-                        fin = time.time()
-                        
-                        tiempo_respuesta = fin - inicio
-                        tiempos.append(tiempo_respuesta)
-                        
-                        if respuesta.get("estado") == "Aceptado":
-                            exitosas += 1
-                        elif respuesta.get("estado") == "Rechazado":
-                            rechazadas += 1
-                        
-                        print(f"  Solicitud {i+1}/{num_solicitudes}: {respuesta.get('estado', 'Sin estado')} - {tiempo_respuesta:.4f}s")
-                        
-                    except Exception as e:
-                        errores += 1
-                        print(f"  Solicitud {i+1}/{num_solicitudes}: Error - {e}")
+                # Contar servidores usados
+                servidor = respuesta.get("servidor", "Desconocido")
+                servidores_usados[servidor] = servidores_usados.get(servidor, 0) + 1
                 
-                # Calcular estadísticas
-                if tiempos:
-                    tiempo_promedio = sum(tiempos) / len(tiempos)
-                    tiempo_min = min(tiempos)
-                    tiempo_max = max(tiempos)
-                    tasa_exito = (exitosas / num_solicitudes) * 100
-                    tasa_rechazo = (rechazadas / num_solicitudes) * 100
-                    tasa_error = (errores / num_solicitudes) * 100
-                    
-                    reporte += f"""
-    {servidor['nombre']} (Puerto {servidor['puerto']}):
+                print(f"  Solicitud {i+1}/{num_solicitudes}: {respuesta.get('estado', 'Sin estado')} - {tiempo_respuesta:.4f}s (Servidor: {servidor})")
+            else:
+                errores += 1
+                print(f"  Solicitud {i+1}/{num_solicitudes}: Error - {respuesta.get('mensaje', 'Desconocido')}")
+        
+        # Calcular estadísticas
+        if tiempos:
+            tiempo_promedio = sum(tiempos) / len(tiempos)
+            tiempo_min = min(tiempos)
+            tiempo_max = max(tiempos)
+            tasa_exito = (exitosas / num_solicitudes) * 100
+            tasa_rechazo = (rechazadas / num_solicitudes) * 100
+            tasa_error = (errores / num_solicitudes) * 100
+            
+            reporte += f"""
+    SISTEMA VÍA BROKER:
         ✓ Disponible
         📊 Estadísticas de {num_solicitudes} solicitudes:
             ✅ Exitosas: {exitosas} ({tasa_exito:.1f}%)
@@ -846,48 +736,50 @@ class Pruebador:
             📈 Promedio: {tiempo_promedio:.4f}s ({tiempo_promedio*1000:.2f}ms)
             ⚡ Mínimo: {tiempo_min:.4f}s ({tiempo_min*1000:.2f}ms)
             🐌 Máximo: {tiempo_max:.4f}s ({tiempo_max*1000:.2f}ms)
-
+        
+        🔄 Distribución de servidores:
     """
-                else:
-                    reporte += f"""
-    {servidor['nombre']} (Puerto {servidor['puerto']}):
+            for servidor, count in servidores_usados.items():
+                porcentaje = (count / sum(servidores_usados.values())) * 100
+                reporte += f"        {servidor}: {count} solicitudes ({porcentaje:.1f}%)\n"
+            
+        else:
+            reporte += f"""
+    SISTEMA VÍA BROKER:
         ❌ No se pudo completar ninguna solicitud
         ⚠️  Errores en todas las {num_solicitudes} solicitudes
-
     """
-                                
-            except Exception as e:
-                reporte += f"""
-    {servidor['nombre']} (Puerto {servidor['puerto']}):
-        ✗ No disponible - {e}
-
-    """
-            finally:
-                if socket:
-                    socket.close()
-        
-        # Agregar estado de recursos
-        reporte += "\nESTADO DE RECURSOS:\n"
-        reporte += "-" * 30 + "\n"
-        
-        for archivo in self.archivos_recursos:
-            if os.path.exists(archivo):
-                try:
-                    with open(archivo, 'r') as f:
-                        contenido = json.load(f)
-                    reporte += f"{archivo}: Salones={contenido.get('salones_disponibles', 'N/A')}, Labs={contenido.get('laboratorios_disponibles', 'N/A')}\n"
-                except:
-                    reporte += f"{archivo}: Error al leer\n"
-            else:
-                reporte += f"{archivo}: No existe\n"
         
         # Guardar reporte
-        nombre_reporte = f"reporte_rendimiento_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        nombre_reporte = f"reporte_rendimiento_broker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
         with open(nombre_reporte, 'w') as f:
             f.write(reporte)
         
         print(reporte)
         print(f"✓ Reporte guardado en: {nombre_reporte}")
+
+    def _usar_broker_para_solicitud(self, solicitud):
+        """Helper para enviar solicitudes a través del broker"""
+        socket = None
+        try:
+            socket = self.context.socket(zmq.REQ)
+            socket.setsockopt(zmq.RCVTIMEO, 10000)  # Timeout más alto para broker
+            ip = self._get_ip_for_port(7001)  # Puerto del broker
+            socket.connect(f"tcp://{ip}:7001")
+            
+            inicio = time.time()
+            socket.send_json(solicitud)
+            respuesta = socket.recv_json()
+            fin = time.time()
+            
+            return respuesta, fin - inicio
+            
+        except Exception as e:
+            return {"estado": "Error", "mensaje": str(e)}, None
+        finally:
+            if socket:
+                socket.close()
+
 
 # bbbbbbb
 
@@ -1226,11 +1118,11 @@ class Pruebador:
                     elif opcion == "2":
                         self.probar_conexion_backup()
                     elif opcion == "3":
-                        num = int(input("Número de solicitudes (default 10): ") or "10")
-                        self.envio_masivo_solicitudes(6000, "DTI Principal", num)
+                        num_solicitudes = int(input("Número de solicitudes (default 10): ") or "10")
+                        self.envio_masivo_solicitudes(None, "BROKER", num_solicitudes)
                     elif opcion == "4":
-                        num = int(input("Número de solicitudes (default 10): ") or "10")
-                        self.envio_masivo_solicitudes(5999, "DTI Backup", num)
+                        num_solicitudes = int(input("Número de solicitudes (default 10): ") or "10")
+                        self.envio_masivo_solicitudes(None, "BROKER", num_solicitudes)
                     elif opcion == "5":
                         print("⚠ Para simular falla del DTI, deten manualmente el proceso DTI.py")
                         print("sudo fuser -k 6000/tcp")
