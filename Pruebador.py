@@ -104,9 +104,7 @@ class Pruebador:
     # metodo para el escenario de la prueba 1
 
     def escenario_1_prueba_intensiva(self):
-    """
-    Escenario 1: 5 facultades, 5 programas c/u, mínimo 7 aulas y 2 labs (o máximo 2 y 7)
-    """
+        """Escenario 1: 5 facultades, 5 programas c/u, mínimo 7 aulas y 2 labs (o máximo 2 y 7)"""
     print("\n[ESCENARIO 1] Prueba Intensiva: 5 Facultades x 5 Programas")
     print("Configuración: Mínimo 7 aulas y 2 laboratorios (o máximo 2 aulas y 7 laboratorios)")
     print("="*80)
