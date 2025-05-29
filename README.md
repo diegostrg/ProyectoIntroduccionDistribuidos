@@ -18,7 +18,7 @@ Documento: https://livejaverianaedu-my.sharepoint.com/:w:/g/personal/al_javier_j
 
 Pizarrón: https://miro.com/app/board/uXjVICic0yM=/
 
-orden de ejecucion:
+orden de ejecucion (en diferentes terminales):
 python DTI.py
 python DTIBackup.py
 python broker.py
