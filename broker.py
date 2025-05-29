@@ -12,10 +12,10 @@ class BrokerBalanceador:
 
         # Conexiones a servidores DTI
         self.backend_dti = self.context.socket(zmq.DEALER)
-        self.backend_dti.connect("tcp://localhost:6000")
+        self.backend_dti.connect("tcp://10.43.103.206:6000")
         
         self.backend_backup = self.context.socket(zmq.DEALER)
-        self.backend_backup.connect("tcp://localhost:5999")
+        self.backend_backup.connect("tcp://10.43.96.34:5999")
         
         # Frontend para facultades
         self.frontend = self.context.socket(zmq.ROUTER)
@@ -23,7 +23,7 @@ class BrokerBalanceador:
         
         # Subscriber para healthcheck
         self.subscriber = self.context.socket(zmq.SUB)
-        self.subscriber.connect("tcp://localhost:7000")
+        self.subscriber.connect("tcp://10.43.96.34:7000")
         self.subscriber.setsockopt_string(zmq.SUBSCRIBE, "switch")
         
         # Estado del broker

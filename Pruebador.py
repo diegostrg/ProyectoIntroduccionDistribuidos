@@ -26,6 +26,17 @@ class Pruebador:
             "DTI Principal": {"tiempos": [], "timestamps": [], "estados": []},
             "DTI Backup": {"tiempos": [], "timestamps": [], "estados": []}
         }
+
+        self.puerto_ip_map = {
+            6000: "10.43.103.206",  # DTI Principal
+            5999: "10.43.96.34",   # DTI Backup
+            7001: "10.43.96.34",   # Broker
+            6001: "10.43.96.34"    # Broker puerto alternativo
+        }
+
+    def _get_ip_for_port(self, puerto):
+        """Obtiene la IP correcta según el puerto"""
+        return self.puerto_ip_map.get(puerto, "localhost")
         
     def mostrar_menu(self):
         print("\n" + "="*60)
@@ -130,7 +141,8 @@ class Pruebador:
         try:
             socket = self.context.socket(zmq.REQ)
             socket.setsockopt(zmq.RCVTIMEO, 3000)  # Timeout reducido
-            socket.connect(f"tcp://localhost:{puerto}")
+            ip = self._get_ip_for_port(puerto)
+            socket.connect(f"tcp://{ip}:{puerto}")
             
             mensaje_prueba = {
                 "tipo": "conexion",
@@ -211,7 +223,8 @@ class Pruebador:
                 try:
                     socket = self.context.socket(zmq.REQ)
                     socket.setsockopt(zmq.RCVTIMEO, 5000)
-                    socket.connect(f"tcp://localhost:{servidor['puerto']}")
+                    ip = self._get_ip_for_port(servidor['puerto'])
+                    socket.connect(f"tcp://{ip}:{servidor['puerto']}")
                     
                     solicitud = {
                         "facultad": f"Facultad Test {i}",
@@ -335,6 +348,7 @@ class Pruebador:
         # Simular cambios en recursos enviando solicitudes
         num_solicitudes = int(input("Número de solicitudes para simular (default 15): ") or "15")
         servidor = input("Servidor a probar (6000=DTI, 5999=Backup, default 6000): ") or "6000"
+        puerto = int(servidor)
         
         historial_recursos = []
         timestamps = []
@@ -355,7 +369,8 @@ class Pruebador:
             try:
                 socket = self.context.socket(zmq.REQ)
                 socket.setsockopt(zmq.RCVTIMEO, 5000)
-                socket.connect(f"tcp://localhost:{servidor}")
+                ip = self._get_ip_for_port(puerto)
+                socket.connect(f"tcp://{ip}:{puerto}")
                 
                 solicitud = {
                     "facultad": f"Facultad Utilización {i}",
@@ -420,7 +435,8 @@ class Pruebador:
         try:
             socket = self.context.socket(zmq.REQ)
             socket.setsockopt(zmq.RCVTIMEO, 5000)  # Timeout 5 segundos
-            socket.connect("tcp://localhost:6000")
+            ip = self._get_ip_for_port(6000)
+            socket.connect(f"tcp://{ip}:6000")
             
             mensaje_prueba = {
                 "tipo": "conexion",
@@ -451,7 +467,8 @@ class Pruebador:
         try:
             socket = self.context.socket(zmq.REQ)
             socket.setsockopt(zmq.RCVTIMEO, 5000)
-            socket.connect("tcp://localhost:5999")
+            ip = self._get_ip_for_port(5999)
+            socket.connect(f"tcp://{ip}:5999")
             
             mensaje_prueba = {
                 "tipo": "conexion", 
@@ -483,7 +500,8 @@ class Pruebador:
         try:
             socket = self.context.socket(zmq.REQ)
             socket.setsockopt(zmq.RCVTIMEO, 10000)
-            socket.connect(f"tcp://localhost:{puerto}")
+            ip = self._get_ip_for_port(puerto)
+            socket.connect(f"tcp://{ip}:{puerto}")
             
             tiempos_respuesta = []
             solicitudes_exitosas = 0
@@ -630,13 +648,15 @@ class Pruebador:
         num_hilos = int(input("Número de hilos concurrentes (default 5): ") or "5")
         solicitudes_por_hilo = int(input("Solicitudes por hilo (default 10): ") or "10")
         puerto = input("Puerto del servidor (6000=DTI, 5999=Backup, default 6000): ") or "6000"
+        puerto = int(puerto)
         
         def enviar_solicitudes_hilo(hilo_id):
             socket = None
             try:
                 socket = self.context.socket(zmq.REQ)
                 socket.setsockopt(zmq.RCVTIMEO, 15000)
-                socket.connect(f"tcp://localhost:{puerto}")
+                ip = self._get_ip_for_port(puerto)
+                socket.connect(f"tcp://{ip}:{puerto}")
                 
                 for i in range(solicitudes_por_hilo):
                     solicitud = {
@@ -705,10 +725,10 @@ class Pruebador:
         ]
         
         reporte = f"""
-REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-{'='*70}
+    REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    {'='*70}
 
-"""
+    """
         
         for servidor in servidores:
             print(f"Probando {servidor['nombre']}...")
@@ -717,7 +737,8 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             try:
                 socket = self.context.socket(zmq.REQ)
                 socket.setsockopt(zmq.RCVTIMEO, 5000)
-                socket.connect(f"tcp://localhost:{servidor['puerto']}")
+                ip = self._get_ip_for_port(servidor['puerto'])
+                socket.connect(f"tcp://{ip}:{servidor['puerto']}")
                 
                 tiempos = []
                 exitosas = 0
@@ -740,22 +761,22 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                         exitosas += 1
                 
                 reporte += f"""
-{servidor['nombre']} (Puerto {servidor['puerto']}):
-    ✓ Disponible
-    ⏱ Tiempo promedio: {sum(tiempos)/len(tiempos):.4f}s
-    ⏱ Tiempo mínimo: {min(tiempos):.4f}s  
-    ⏱ Tiempo máximo: {max(tiempos):.4f}s
-    📊 Solicitudes exitosas: {exitosas}/10
-    📊 Tasa de éxito: {exitosas*10}%
+    {servidor['nombre']} (Puerto {servidor['puerto']}):
+        ✓ Disponible
+        ⏱ Tiempo promedio: {sum(tiempos)/len(tiempos):.4f}s
+        ⏱ Tiempo mínimo: {min(tiempos):.4f}s  
+        ⏱ Tiempo máximo: {max(tiempos):.4f}s
+        📊 Solicitudes exitosas: {exitosas}/10
+        📊 Tasa de éxito: {exitosas*10}%
 
-"""
+    """
                                 
             except Exception as e:
                 reporte += f"""
-{servidor['nombre']} (Puerto {servidor['puerto']}):
-    ✗ No disponible - {e}
+    {servidor['nombre']} (Puerto {servidor['puerto']}):
+        ✗ No disponible - {e}
 
-"""
+    """
             finally:
                 if socket:
                     socket.close()
@@ -783,7 +804,7 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         print(reporte)
         print(f"✓ Reporte guardado en: {nombre_reporte}")
 
-# ...existing code...
+# bbbbbbb
 
     def _medir_tiempo_respuesta(self, puerto, servidor_nombre):
         """Helper method to measure response time from a specific server"""
@@ -791,7 +812,8 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         try:
             socket = self.context.socket(zmq.REQ)
             socket.setsockopt(zmq.RCVTIMEO, 5000)  # 5 second timeout
-            socket.connect(f"tcp://localhost:{puerto}")
+            ip = self._get_ip_for_port(puerto)
+            socket.connect(f"tcp://{ip}:{puerto}")
             
             solicitud = {
                 "facultad": "Facultad de Prueba Failover",
@@ -871,7 +893,7 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             print("❌ Número inválido.")
             return
 
-        puerto_broker = 6001
+        puerto_broker = 7001  # Cambiar de 6001 a 7001
         resultados = []
 
         for i in range(n):
@@ -888,7 +910,8 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
             try:
                 socket = self.context.socket(zmq.REQ)
-                socket.connect(f"tcp://localhost:{puerto_broker}")  # Broker - PC2
+                ip = self._get_ip_for_port(puerto_broker)
+                socket.connect(f"tcp://{ip}:{puerto_broker}")
 
                 inicio = time.time()
                 socket.send_json(solicitud)
@@ -939,6 +962,7 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         ]
         
         servidor = input("Servidor a probar (6000=DTI, 5999=Backup, default 6000): ") or "6000"
+        puerto = int(servidor)
         
         for i, prueba in enumerate(pruebas):
             print(f"\nPrueba {i+1}: {prueba['facultad']}")
@@ -947,7 +971,8 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             try:
                 socket = self.context.socket(zmq.REQ)
                 socket.setsockopt(zmq.RCVTIMEO, 5000)
-                socket.connect(f"tcp://localhost:{servidor}")
+                ip = self._get_ip_for_port(puerto)
+                socket.connect(f"tcp://{ip}:{puerto}")
                 
                 mensaje = {
                     "tipo": "conexion",
@@ -981,7 +1006,8 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         print("\n1. Probando autenticación de facultad...")
         socket_facultad = self.context.socket(zmq.REQ)
         socket_facultad.setsockopt(zmq.RCVTIMEO, 5000)
-        socket_facultad.connect("tcp://localhost:6000")
+        ip = self._get_ip_for_port(6000)
+        socket_facultad.connect(f"tcp://{ip}:6000")
         
         mensaje_conexion = {
             "tipo": "conexion",
@@ -1003,7 +1029,8 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         print("\n2. Probando solicitud con autenticación completa...")
         socket_solicitud = self.context.socket(zmq.REQ)
         socket_solicitud.setsockopt(zmq.RCVTIMEO, 5000)
-        socket_solicitud.connect("tcp://localhost:6000")
+        ip = self._get_ip_for_port(6000)
+        socket_solicitud.connect(f"tcp://{ip}:6000")
         
         solicitud_recursos = {
             "facultad": "Facultad de Ingeniería",
@@ -1026,7 +1053,8 @@ REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         print("\n3. Probando solicitud sin autenticación (debe fallar)...")
         socket_no_auth = self.context.socket(zmq.REQ)
         socket_no_auth.setsockopt(zmq.RCVTIMEO, 5000)
-        socket_no_auth.connect("tcp://localhost:6000")
+        ip = self._get_ip_for_port(6000)
+        socket_no_auth.connect(f"tcp://{ip}:6000")
         
         solicitud_sin_auth = {
             "facultad": "Facultad de Ingeniería",

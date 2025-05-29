@@ -4,9 +4,9 @@ import json
 import threading
 
 # Configuración de servidores
-DTI_IP = "localhost"
+DTI_IP = "10.43.103.206"
 DTI_PORT = 6000
-BACKUP_IP = "localhost"
+BACKUP_IP = "10.43.96.34"
 BACKUP_PORT = 5999
 BROKER_PUB_PORT = 7000
 

@@ -6,7 +6,7 @@ import time
 from AutenticacionDTI import AutenticacionDTI
 
 class DTI:
-    def __init__(self, puerto_rep=6000, backup_ip="localhost", backup_port=6006):
+    def __init__(self, puerto_rep=6000, backup_ip="10.43.102.243", backup_port=6006):
         self.context = zmq.Context()
         self.receptor = self.context.socket(zmq.REP)
         self.receptor.bind(f"tcp://*:{puerto_rep}")
@@ -19,12 +19,12 @@ class DTI:
 
         # Socket PULL para recibir sincronización desde backup
         self.pull_backup_sync = self.context.socket(zmq.PULL)
-        self.pull_backup_sync.bind("tcp://*:6007")
+        self.pull_backup_sync.bind("tcp://10.43.102.243:6007")
         threading.Thread(target=self.recibir_sincronizacion_backup, daemon=True).start()
 
         # Socket SUB para escuchar notificaciones del HealthCheck
         self.subscriber_healthcheck = self.context.socket(zmq.SUB)
-        self.subscriber_healthcheck.connect("tcp://localhost:6008")  # Puerto de notificaciones para DTI
+        self.subscriber_healthcheck.connect("tcp://10.43.96.34:6008")  # Puerto de notificaciones para DTI
         self.subscriber_healthcheck.setsockopt_string(zmq.SUBSCRIBE, "peer_status")
         # Configurar timeout para evitar bloqueos
         self.subscriber_healthcheck.setsockopt(zmq.RCVTIMEO, 1000)  # 1 segundo timeout
@@ -201,7 +201,7 @@ class DTI:
         try:
             # Crear un socket temporal para probar
             test_socket = self.context.socket(zmq.SUB)
-            test_socket.connect("tcp://localhost:6008")
+            test_socket.connect("tcp://10.43.96.34:6008")
             test_socket.setsockopt_string(zmq.SUBSCRIBE, "peer_status")
             test_socket.setsockopt(zmq.RCVTIMEO, 2000)  # 2 segundos timeout
             

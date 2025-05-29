@@ -6,7 +6,7 @@ import time
 from AutenticacionDTI import AutenticacionDTI
 
 class DTIBackup:
-    def __init__(self, puerto_rep=5999, sync_port=6006, dti_ip="localhost", dti_sync_port=6007):
+    def __init__(self, puerto_rep=5999, sync_port=6006, dti_ip="10.43.103.206", dti_sync_port=6007):
         self.context = zmq.Context()
         self.receptor = self.context.socket(zmq.REP)
         self.receptor.bind(f"tcp://*:{puerto_rep}")
@@ -23,7 +23,7 @@ class DTIBackup:
 
         # Socket SUB para escuchar notificaciones del HealthCheck
         self.subscriber_healthcheck = self.context.socket(zmq.SUB)
-        self.subscriber_healthcheck.connect("tcp://localhost:5998")  # Puerto de notificaciones para Backup
+        self.subscriber_healthcheck.connect("tcp://10.43.96.34:5998")  # Puerto de notificaciones para Backup
         self.subscriber_healthcheck.setsockopt_string(zmq.SUBSCRIBE, "peer_status")
         # Configurar timeout para evitar bloqueos
         self.subscriber_healthcheck.setsockopt(zmq.RCVTIMEO, 1000)  # 1 segundo timeout
@@ -228,7 +228,7 @@ class DTIBackup:
         try:
             # Crear un socket temporal para probar
             test_socket = self.context.socket(zmq.SUB)
-            test_socket.connect("tcp://localhost:5998")
+            test_socket.connect("tcp://10.43.96.34:5998")
             test_socket.setsockopt_string(zmq.SUBSCRIBE, "peer_status")
             test_socket.setsockopt(zmq.RCVTIMEO, 2000)  # 2 segundos timeout
             

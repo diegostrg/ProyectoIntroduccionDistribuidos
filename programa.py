@@ -209,7 +209,7 @@ class ProgramaAcademico:
         print(f"[{self.programa}] Enviando solicitudes a {self.facultad} en el puerto {self.puerto}...\n")
 
         self.socket = self.context.socket(zmq.REQ)
-        self.socket.connect(f"tcp://localhost:{self.puerto}")
+        self.socket.connect(f"tcp://10.43.101.56:{self.puerto}")
 
         try:
             while True:

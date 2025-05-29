@@ -41,7 +41,7 @@ class Facultad:
 
     def configurar_conexiones(self):
         self.socket_rep.bind(f"tcp://*:{self.puerto}")
-        self.socket_req.connect("tcp://localhost:7001")  # Conexión al Broker
+        self.socket_req.connect("tcp://10.43.96.34:7001")  # Conexión al Broker
         self.socket_sub.connect("tcp://10.43.103.206:6001")
         self.socket_sub.setsockopt_string(zmq.SUBSCRIBE, self.nombre)
 
