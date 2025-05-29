@@ -29,7 +29,7 @@ class Pruebador:
 
         self.puerto_ip_map = {
             6000: "10.43.103.206",  # DTI Principal
-            5999: "10.43.96.34",   # DTI Backup
+            5999: "10.43.102.234",   # DTI Backup
             7001: "10.43.96.34",   # Broker
             6001: "10.43.96.34"    # Broker puerto alternativo
         }
