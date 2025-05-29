@@ -763,6 +763,9 @@ class Pruebador:
     def generar_reporte_rendimiento(self):
         print("\n[REPORTE] Generando reporte de rendimiento...")
         
+        # Solicitar número de pruebas al usuario
+        num_solicitudes = int(input("Número de solicitudes por servidor (default 10): ") or "10")
+        
         # Probar ambos servidores
         servidores = [
             {"nombre": "DTI Principal", "puerto": 6000},
@@ -772,11 +775,12 @@ class Pruebador:
         reporte = f"""
     REPORTE DE RENDIMIENTO - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     {'='*70}
+    Número de solicitudes por servidor: {num_solicitudes}
 
     """
         
         for servidor in servidores:
-            print(f"Probando {servidor['nombre']}...")
+            print(f"Probando {servidor['nombre']} con {num_solicitudes} solicitudes...")
             
             socket = None
             try:
@@ -787,32 +791,68 @@ class Pruebador:
                 
                 tiempos = []
                 exitosas = 0
+                rechazadas = 0
+                errores = 0
                 
-                for i in range(10):
+                for i in range(num_solicitudes):
+                    # Rotar entre facultades para variar las pruebas
+                    facultades_disponibles = list(self.credenciales_facultades.keys())
+                    facultad = facultades_disponibles[i % len(facultades_disponibles)]
+                    
                     solicitud = self._crear_solicitud_autenticada(
-                        facultad=self.facultad_prueba,
+                        facultad=facultad,
                         programa=f"Programa Reporte {i}",
                         salones=random.randint(1, 5),
                         laboratorios=random.randint(1, 3)
                     )
                     
-                    inicio = time.time()
-                    socket.send_json(solicitud)
-                    respuesta = socket.recv_json()
-                    fin = time.time()
-                    
-                    tiempos.append(fin - inicio)
-                    if respuesta.get("estado") == "Aceptado":
-                        exitosas += 1
+                    try:
+                        inicio = time.time()
+                        socket.send_json(solicitud)
+                        respuesta = socket.recv_json()
+                        fin = time.time()
+                        
+                        tiempo_respuesta = fin - inicio
+                        tiempos.append(tiempo_respuesta)
+                        
+                        if respuesta.get("estado") == "Aceptado":
+                            exitosas += 1
+                        elif respuesta.get("estado") == "Rechazado":
+                            rechazadas += 1
+                        
+                        print(f"  Solicitud {i+1}/{num_solicitudes}: {respuesta.get('estado', 'Sin estado')} - {tiempo_respuesta:.4f}s")
+                        
+                    except Exception as e:
+                        errores += 1
+                        print(f"  Solicitud {i+1}/{num_solicitudes}: Error - {e}")
                 
-                reporte += f"""
+                # Calcular estadísticas
+                if tiempos:
+                    tiempo_promedio = sum(tiempos) / len(tiempos)
+                    tiempo_min = min(tiempos)
+                    tiempo_max = max(tiempos)
+                    tasa_exito = (exitosas / num_solicitudes) * 100
+                    tasa_rechazo = (rechazadas / num_solicitudes) * 100
+                    tasa_error = (errores / num_solicitudes) * 100
+                    
+                    reporte += f"""
     {servidor['nombre']} (Puerto {servidor['puerto']}):
         ✓ Disponible
-        ⏱ Tiempo promedio: {sum(tiempos)/len(tiempos):.4f}s
-        ⏱ Tiempo mínimo: {min(tiempos):.4f}s  
-        ⏱ Tiempo máximo: {max(tiempos):.4f}s
-        📊 Solicitudes exitosas: {exitosas}/10
-        📊 Tasa de éxito: {exitosas*10}%
+        📊 Estadísticas de {num_solicitudes} solicitudes:
+            ✅ Exitosas: {exitosas} ({tasa_exito:.1f}%)
+            ❌ Rechazadas: {rechazadas} ({tasa_rechazo:.1f}%)
+            ⚠️  Errores: {errores} ({tasa_error:.1f}%)
+        ⏱ Tiempos de respuesta:
+            📈 Promedio: {tiempo_promedio:.4f}s ({tiempo_promedio*1000:.2f}ms)
+            ⚡ Mínimo: {tiempo_min:.4f}s ({tiempo_min*1000:.2f}ms)
+            🐌 Máximo: {tiempo_max:.4f}s ({tiempo_max*1000:.2f}ms)
+
+    """
+                else:
+                    reporte += f"""
+    {servidor['nombre']} (Puerto {servidor['puerto']}):
+        ❌ No se pudo completar ninguna solicitud
+        ⚠️  Errores en todas las {num_solicitudes} solicitudes
 
     """
                                 

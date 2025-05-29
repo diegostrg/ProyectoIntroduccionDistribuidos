@@ -7,19 +7,16 @@ class BrokerBalanceador:
     def __init__(self):
         self.context = zmq.Context()
         
-        # Este programa debe llevar la ip 10.43.96.34
-
-
         # Conexiones a servidores DTI
         self.backend_dti = self.context.socket(zmq.DEALER)
         self.backend_dti.connect("tcp://10.43.103.206:6000")
         
         self.backend_backup = self.context.socket(zmq.DEALER)
-        self.backend_backup.connect("tcp://10.43.102.234:5999")
+        self.backend_backup.connect("tcp://10.43.102.243:5999")  # Corregir IP
         
         # Frontend para facultades
         self.frontend = self.context.socket(zmq.ROUTER)
-        self.frontend.bind("tcp://*:7001")  # Puerto para facultades
+        self.frontend.bind("tcp://*:7001")
         
         # Subscriber para healthcheck
         self.subscriber = self.context.socket(zmq.SUB)
@@ -32,15 +29,21 @@ class BrokerBalanceador:
             "backup": self.backend_backup
         }
         
-        self.servidores_activos = ["dti", "backup"]  # Iniciar con ambos servidores activos.
+        self.servidores_activos = ["dti", "backup"]
         self.indice_actual = 0
         self.lock = threading.Lock()
         self.mapa_respuestas = {}
+        
+        # NUEVO: tracking de solicitudes pendientes con timeout
+        self.solicitudes_pendientes = {}  # {identidad: {"servidor": str, "mensaje": bytes, "timestamp": float, "intentos": int}}
+        
         self.estadisticas = {
             "solicitudes_procesadas": 0,
             "solicitudes_dti": 0,
             "solicitudes_backup": 0,
-            "errores": 0
+            "errores": 0,
+            "timeouts": 0,
+            "failovers": 0
         }
         
         print("[Broker] 🚀 Inicializando Broker Balanceador...")
@@ -112,7 +115,7 @@ class BrokerBalanceador:
         
         while True:
             try:
-                socks = dict(poller.poll(timeout=1000))  # 1 segundo timeout
+                socks = dict(poller.poll(timeout=100))  # Reducir timeout para verificar pendientes más frecuentemente
                 
                 # Procesar solicitudes de facultades
                 if self.frontend in socks:
@@ -122,6 +125,9 @@ class BrokerBalanceador:
                 for servidor_nombre, socket_servidor in self.servidores.items():
                     if socket_servidor in socks:
                         self._procesar_respuesta_servidor(servidor_nombre, socket_servidor)
+                
+                # NUEVO: Verificar timeouts y hacer failover
+                self._verificar_timeouts()
                 
             except Exception as e:
                 print(f"[Broker] ❌ Error procesando: {e}")
@@ -141,45 +147,131 @@ class BrokerBalanceador:
                 facultad = "Desconocida"
                 tipo_solicitud = "desconocido"
             
-            # Seleccionar servidor disponible
-            servidor, socket_destino = self.seleccionar_servidor()
-            
-            if not servidor or not socket_destino:
-                # No hay servidores disponibles
-                print(f"[Broker] ❌ Sin servidores para '{facultad}' - Rechazando solicitud")
-                
-                respuesta_error = json.dumps({
-                    "estado": "Error",
-                    "mensaje": "No hay servidores disponibles",
-                    "facultad": facultad
-                }).encode()
-                
-                self.frontend.send_multipart([identidad, b'', respuesta_error])
-                self.estadisticas["errores"] += 1
-                return
-            
-            # Enviar solicitud al servidor seleccionado
-            socket_destino.send_multipart([identidad, b'', mensaje])
-            self.mapa_respuestas[identidad] = self.frontend
-            
-            # Actualizar estadísticas
-            self.estadisticas["solicitudes_procesadas"] += 1
-            if servidor == "dti":
-                self.estadisticas["solicitudes_dti"] += 1
-            elif servidor == "backup":
-                self.estadisticas["solicitudes_backup"] += 1
-            
-            print(f"[Broker] 📤 Solicitud #{self.estadisticas['solicitudes_procesadas']}: "
-                  f"'{facultad}' → {servidor.upper()} ({tipo_solicitud})")
+            # Enviar solicitud al primer servidor disponible
+            self._enviar_solicitud_con_failover(identidad, mensaje, facultad, tipo_solicitud, primer_intento=True)
             
         except Exception as e:
             print(f"[Broker] ❌ Error procesando solicitud: {e}")
             self.estadisticas["errores"] += 1
+
+    def _enviar_solicitud_con_failover(self, identidad, mensaje, facultad, tipo_solicitud, primer_intento=False):
+        """Envía solicitud con capacidad de failover automático"""
+        servidor, socket_destino = self.seleccionar_servidor()
+        
+        if not servidor or not socket_destino:
+            print(f"[Broker] ❌ Sin servidores para '{facultad}' - Rechazando solicitud")
+            
+            respuesta_error = json.dumps({
+                "estado": "Error",
+                "mensaje": "No hay servidores disponibles",
+                "facultad": facultad
+            }).encode()
+            
+            self.frontend.send_multipart([identidad, b'', respuesta_error])
+            self.estadisticas["errores"] += 1
+            return
+        
+        # Enviar solicitud al servidor seleccionado
+        socket_destino.send_multipart([identidad, b'', mensaje])
+        self.mapa_respuestas[identidad] = self.frontend
+        
+        # Registrar solicitud pendiente para timeout
+        with self.lock:
+            self.solicitudes_pendientes[identidad] = {
+                "servidor": servidor,
+                "mensaje": mensaje,
+                "timestamp": time.time(),
+                "intentos": 1 if primer_intento else 2,
+                "facultad": facultad,
+                "tipo": tipo_solicitud
+            }
+        
+        # Actualizar estadísticas
+        if primer_intento:
+            self.estadisticas["solicitudes_procesadas"] += 1
+        
+        if servidor == "dti":
+            self.estadisticas["solicitudes_dti"] += 1
+        elif servidor == "backup":
+            self.estadisticas["solicitudes_backup"] += 1
+        
+        accion = "Failover" if not primer_intento else "Nueva"
+        print(f"[Broker] 📤 {accion} solicitud: '{facultad}' → {servidor.upper()} ({tipo_solicitud})")
     
+
+
+    def _verificar_timeouts(self):
+        """Verifica timeouts y ejecuta failover automático"""
+        tiempo_actual = time.time()
+        timeout_segundos = 0.5  # 500ms timeout
+        
+        solicitudes_timeout = []
+        
+        with self.lock:
+            for identidad, datos in self.solicitudes_pendientes.items():
+                if tiempo_actual - datos["timestamp"] > timeout_segundos:
+                    solicitudes_timeout.append((identidad, datos))
+        
+        # Procesar timeouts fuera del lock
+        for identidad, datos in solicitudes_timeout:
+            if datos["intentos"] < 2:
+                # Primer timeout, intentar failover
+                print(f"[Broker] ⏱️ TIMEOUT en {datos['servidor'].upper()} para '{datos['facultad']}' - Haciendo failover...")
+                
+                # Remover servidor fallido de la lista activa temporalmente
+                with self.lock:
+                    if datos["servidor"] in self.servidores_activos:
+                        self.servidores_activos.remove(datos["servidor"])
+                        print(f"[Broker] 🚫 Servidor {datos['servidor'].upper()} marcado como no disponible")
+                    
+                    # Limpiar solicitud pendiente
+                    if identidad in self.solicitudes_pendientes:
+                        del self.solicitudes_pendientes[identidad]
+                
+                # Intentar enviar al otro servidor
+                self._enviar_solicitud_con_failover(
+                    identidad, 
+                    datos["mensaje"], 
+                    datos["facultad"], 
+                    datos["tipo"], 
+                    primer_intento=False
+                )
+                
+                self.estadisticas["timeouts"] += 1
+                self.estadisticas["failovers"] += 1
+                
+            else:
+                # Segundo timeout, rechazar solicitud
+                print(f"[Broker] ❌ TIMEOUT FINAL para '{datos['facultad']}' - Rechazando solicitud")
+                
+                respuesta_error = json.dumps({
+                    "estado": "Error",
+                    "mensaje": "Timeout en todos los servidores",
+                    "facultad": datos["facultad"]
+                }).encode()
+                
+                if identidad in self.mapa_respuestas:
+                    frontend_socket = self.mapa_respuestas[identidad]
+                    frontend_socket.send_multipart([identidad, b'', respuesta_error])
+                    del self.mapa_respuestas[identidad]
+                
+                with self.lock:
+                    if identidad in self.solicitudes_pendientes:
+                        del self.solicitudes_pendientes[identidad]
+                
+                self.estadisticas["errores"] += 1
+
+
+
     def _procesar_respuesta_servidor(self, servidor_nombre, socket_servidor):
         """Procesa una respuesta de un servidor"""
         try:
             identidad, _, respuesta = socket_servidor.recv_multipart()
+            
+            # Limpiar solicitud pendiente ya que recibimos respuesta
+            with self.lock:
+                if identidad in self.solicitudes_pendientes:
+                    del self.solicitudes_pendientes[identidad]
             
             if identidad in self.mapa_respuestas:
                 # Reenviar respuesta a la facultad
@@ -202,7 +294,9 @@ class BrokerBalanceador:
                 
         except Exception as e:
             print(f"[Broker] ❌ Error procesando respuesta de {servidor_nombre}: {e}")
-    
+
+
+
     def mostrar_estadisticas(self):
         """Muestra estadísticas del broker cada 30 segundos"""
         while True:
@@ -213,13 +307,17 @@ class BrokerBalanceador:
                 dti = self.estadisticas["solicitudes_dti"]
                 backup = self.estadisticas["solicitudes_backup"]
                 errores = self.estadisticas["errores"]
+                timeouts = self.estadisticas["timeouts"]
+                failovers = self.estadisticas["failovers"]
+                pendientes = len(self.solicitudes_pendientes)
                 
                 print(f"\n[Broker] 📊 ESTADÍSTICAS:")
                 print(f"    Servidores activos: {activos}/2 {self.servidores_activos}")
-                print(f"    Solicitudes totales: {total}")
-                print(f"    DTI: {dti} | Backup: {backup} | Errores: {errores}")
-                print(f"    Solicitudes pendientes: {len(self.mapa_respuestas)}")
-    
+                print(f"    Solicitudes: Total={total} | DTI={dti} | Backup={backup}")
+                print(f"    Problemas: Errores={errores} | Timeouts={timeouts} | Failovers={failovers}")
+                print(f"    Pendientes: {pendientes} | Mapeadas: {len(self.mapa_respuestas)}")
+
+                
     def ejecutar(self):
         """Inicia todos los hilos del broker"""
         try:
