@@ -96,9 +96,420 @@ class Pruebador:
         print("17. Prueba autenticación de facultades")
         print("18. Prueba seguridad completa")
         print("19. Información archivos de autenticación")
+        print("20. Escenario 1: 5 Facultades - Prueba intensiva (7-2 aulas/labs)")
+        print("21. Escenario 2: 5 Facultades - Prueba máxima (10-4 aulas/labs)")
         print("0.  Salir")
         print("="*60)
         
+    # metodo para el escenario de la prueba 1
+
+    def escenario_1_prueba_intensiva(self):
+    """
+    Escenario 1: 5 facultades, 5 programas c/u, mínimo 7 aulas y 2 labs (o máximo 2 y 7)
+    """
+    print("\n[ESCENARIO 1] Prueba Intensiva: 5 Facultades x 5 Programas")
+    print("Configuración: Mínimo 7 aulas y 2 laboratorios (o máximo 2 aulas y 7 laboratorios)")
+    print("="*80)
+    
+    # Seleccionar 5 facultades
+    facultades_seleccionadas = list(self.credenciales_facultades.keys())[:5]
+    num_programas_por_facultad = 5
+    num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
+    
+    # Estructuras para recopilar datos
+    resultados_por_facultad = {}
+    resultados_por_programa = {}
+    tiempos_respuesta_globales = []
+    tiempos_atencion_globales = []
+    
+    inicio_escenario = time.time()
+    
+    for facultad in facultades_seleccionadas:
+        print(f"\n🏛️  Procesando {facultad}...")
+        resultados_por_facultad[facultad] = {
+            'tiempos_respuesta': [],
+            'exitosas': 0,
+            'rechazadas': 0,
+            'errores': 0
+        }
+        
+        for programa_num in range(1, num_programas_por_facultad + 1):
+            programa_nombre = f"Programa {programa_num} de {facultad.split()[-1]}"
+            programa_key = f"{facultad}_{programa_nombre}"
+            
+            resultados_por_programa[programa_key] = {
+                'tiempos_respuesta': [],
+                'tiempos_atencion': [],
+                'exitosas': 0,
+                'rechazadas': 0,
+                'errores': 0,
+                'solicitudes_total': num_solicitudes_por_programa
+            }
+            
+            print(f"  📚 {programa_nombre}:")
+            
+            for solicitud_num in range(num_solicitudes_por_programa):
+                # Configuración del escenario 1: mínimo 7 aulas y 2 labs O máximo 2 aulas y 7 labs
+                if random.choice([True, False]):
+                    # Opción A: Muchas aulas, pocos laboratorios
+                    salones = random.randint(7, 15)
+                    laboratorios = random.randint(2, 4)
+                else:
+                    # Opción B: Pocas aulas, muchos laboratorios
+                    salones = random.randint(1, 2)
+                    laboratorios = random.randint(7, 12)
+                
+                solicitud = self._crear_solicitud_autenticada(
+                    facultad=facultad,
+                    programa=programa_nombre,
+                    salones=salones,
+                    laboratorios=laboratorios
+                )
+                
+                # Medir tiempo de atención (desde solicitud hasta respuesta)
+                inicio_atencion = time.time()
+                respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+                fin_atencion = time.time()
+                
+                tiempo_atencion = fin_atencion - inicio_atencion
+                
+                if tiempo_respuesta:
+                    # Datos por facultad
+                    resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                    
+                    # Datos por programa
+                    resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                    resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
+                    
+                    # Datos globales
+                    tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
+                    tiempos_atencion_globales.append(tiempo_atencion * 1000)
+                    
+                    estado = respuesta.get("estado", "Error")
+                    servidor = respuesta.get("servidor", "Desconocido")
+                    
+                    if estado == "Aceptado":
+                        resultados_por_facultad[facultad]['exitosas'] += 1
+                        resultados_por_programa[programa_key]['exitosas'] += 1
+                        status_symbol = "✅"
+                    elif estado == "Rechazado":
+                        resultados_por_facultad[facultad]['rechazadas'] += 1
+                        resultados_por_programa[programa_key]['rechazadas'] += 1
+                        status_symbol = "❌"
+                    else:
+                        resultados_por_facultad[facultad]['errores'] += 1
+                        resultados_por_programa[programa_key]['errores'] += 1
+                        status_symbol = "⚠️"
+                    
+                    print(f"    {status_symbol} Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
+                else:
+                    resultados_por_facultad[facultad]['errores'] += 1
+                    resultados_por_programa[programa_key]['errores'] += 1
+                    print(f"    ⚠️  Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
+    
+    fin_escenario = time.time()
+    
+    # Generar reporte detallado
+    self._generar_reporte_escenario(
+        "ESCENARIO 1 - PRUEBA INTENSIVA",
+        resultados_por_facultad,
+        resultados_por_programa,
+        tiempos_respuesta_globales,
+        tiempos_atencion_globales,
+        inicio_escenario,
+        fin_escenario,
+        "escenario_1"
+    )
+
+    def escenario_2_prueba_maxima(self):
+        """
+        Escenario 2: 5 facultades, 5 programas c/u, máximo 10 aulas y 4 labs (o máximo 4 y 10)
+        """
+        print("\n[ESCENARIO 2] Prueba Máxima: 5 Facultades x 5 Programas")
+        print("Configuración: Máximo 10 aulas y 4 laboratorios (o máximo 4 aulas y 10 laboratorios)")
+        print("="*80)
+        
+        # Seleccionar 5 facultades
+        facultades_seleccionadas = list(self.credenciales_facultades.keys())[:5]
+        num_programas_por_facultad = 5
+        num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
+        
+        # Estructuras para recopilar datos
+        resultados_por_facultad = {}
+        resultados_por_programa = {}
+        tiempos_respuesta_globales = []
+        tiempos_atencion_globales = []
+        
+        inicio_escenario = time.time()
+        
+        for facultad in facultades_seleccionadas:
+            print(f"\n🏛️  Procesando {facultad}...")
+            resultados_por_facultad[facultad] = {
+                'tiempos_respuesta': [],
+                'exitosas': 0,
+                'rechazadas': 0,
+                'errores': 0
+            }
+            
+            for programa_num in range(1, num_programas_por_facultad + 1):
+                programa_nombre = f"Programa {programa_num} de {facultad.split()[-1]}"
+                programa_key = f"{facultad}_{programa_nombre}"
+                
+                resultados_por_programa[programa_key] = {
+                    'tiempos_respuesta': [],
+                    'tiempos_atencion': [],
+                    'exitosas': 0,
+                    'rechazadas': 0,
+                    'errores': 0,
+                    'solicitudes_total': num_solicitudes_por_programa
+                }
+                
+                print(f"  📚 {programa_nombre}:")
+                
+                for solicitud_num in range(num_solicitudes_por_programa):
+                    # Configuración del escenario 2: máximo 10 aulas y 4 labs O máximo 4 aulas y 10 labs
+                    if random.choice([True, False]):
+                        # Opción A: Muchas aulas, pocos laboratorios
+                        salones = random.randint(5, 10)
+                        laboratorios = random.randint(1, 4)
+                    else:
+                        # Opción B: Pocas aulas, muchos laboratorios
+                        salones = random.randint(1, 4)
+                        laboratorios = random.randint(5, 10)
+                    
+                    solicitud = self._crear_solicitud_autenticada(
+                        facultad=facultad,
+                        programa=programa_nombre,
+                        salones=salones,
+                        laboratorios=laboratorios
+                    )
+                    
+                    # Medir tiempo de atención (desde solicitud hasta respuesta)
+                    inicio_atencion = time.time()
+                    respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+                    fin_atencion = time.time()
+                    
+                    tiempo_atencion = fin_atencion - inicio_atencion
+                    
+                    if tiempo_respuesta:
+                        # Datos por facultad
+                        resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                        
+                        # Datos por programa
+                        resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                        resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
+                        
+                        # Datos globales
+                        tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
+                        tiempos_atencion_globales.append(tiempo_atencion * 1000)
+                        
+                        estado = respuesta.get("estado", "Error")
+                        servidor = respuesta.get("servidor", "Desconocido")
+                        
+                        if estado == "Aceptado":
+                            resultados_por_facultad[facultad]['exitosas'] += 1
+                            resultados_por_programa[programa_key]['exitosas'] += 1
+                            status_symbol = "✅"
+                        elif estado == "Rechazado":
+                            resultados_por_facultad[facultad]['rechazadas'] += 1
+                            resultados_por_programa[programa_key]['rechazadas'] += 1
+                            status_symbol = "❌"
+                        else:
+                            resultados_por_facultad[facultad]['errores'] += 1
+                            resultados_por_programa[programa_key]['errores'] += 1
+                            status_symbol = "⚠️"
+                        
+                        print(f"    {status_symbol} Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
+                    else:
+                        resultados_por_facultad[facultad]['errores'] += 1
+                        resultados_por_programa[programa_key]['errores'] += 1
+                        print(f"    ⚠️  Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
+        
+        fin_escenario = time.time()
+        
+        # Generar reporte detallado
+        self._generar_reporte_escenario(
+            "ESCENARIO 2 - PRUEBA MÁXIMA",
+            resultados_por_facultad,
+            resultados_por_programa,
+            tiempos_respuesta_globales,
+            tiempos_atencion_globales,
+            inicio_escenario,
+            fin_escenario,
+            "escenario_2"
+        )
+
+    def _generar_reporte_escenario(self, titulo, resultados_facultad, resultados_programa, 
+                                tiempos_respuesta, tiempos_atencion, inicio, fin, prefijo_archivo):
+        """Genera reporte detallado para los escenarios"""
+        
+        duracion_total = fin - inicio
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        # Calcular estadísticas globales
+        if tiempos_respuesta:
+            tiempo_resp_promedio = np.mean(tiempos_respuesta)
+            tiempo_resp_min = np.min(tiempos_respuesta)
+            tiempo_resp_max = np.max(tiempos_respuesta)
+        else:
+            tiempo_resp_promedio = tiempo_resp_min = tiempo_resp_max = 0
+        
+        if tiempos_atencion:
+            tiempo_aten_promedio = np.mean(tiempos_atencion)
+            tiempo_aten_min = np.min(tiempos_atencion)
+            tiempo_aten_max = np.max(tiempos_atencion)
+        else:
+            tiempo_aten_promedio = tiempo_aten_min = tiempo_aten_max = 0
+        
+        # Crear reporte de texto
+        reporte = f"""
+    {titulo}
+    {'='*80}
+    Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    Duración total del escenario: {duracion_total:.2f} segundos
+
+    ESTADÍSTICAS GLOBALES:
+    {'='*50}
+    📊 Tiempo de respuesta (servidor a facultades):
+    • Promedio: {tiempo_resp_promedio:.2f}ms
+    • Mínimo: {tiempo_resp_min:.2f}ms
+    • Máximo: {tiempo_resp_max:.2f}ms
+
+    ⏱️  Tiempo de atención (programa a respuesta):
+    • Promedio: {tiempo_aten_promedio:.2f}ms
+    • Mínimo: {tiempo_aten_min:.2f}ms
+    • Máximo: {tiempo_aten_max:.2f}ms
+
+    RESULTADOS POR FACULTAD:
+    {'='*50}
+    """
+        
+        for facultad, datos in resultados_facultad.items():
+            total_solicitudes = datos['exitosas'] + datos['rechazadas'] + datos['errores']
+            tasa_exito = (datos['exitosas'] / total_solicitudes * 100) if total_solicitudes > 0 else 0
+            
+            if datos['tiempos_respuesta']:
+                prom_facultad = np.mean(datos['tiempos_respuesta'])
+            else:
+                prom_facultad = 0
+            
+            reporte += f"""
+    🏛️  {facultad}:
+    • Total solicitudes: {total_solicitudes}
+    • Exitosas: {datos['exitosas']} ({tasa_exito:.1f}%)
+    • Rechazadas: {datos['rechazadas']}
+    • Errores: {datos['errores']}
+    • Tiempo promedio respuesta: {prom_facultad:.2f}ms
+    """
+        
+        reporte += f"""
+
+    RESULTADOS POR PROGRAMA:
+    {'='*50}
+    """
+        
+        for programa_key, datos in resultados_programa.items():
+            facultad_nombre = programa_key.split('_')[0] + ' ' + programa_key.split('_')[1] + ' ' + programa_key.split('_')[2]
+            programa_nombre = '_'.join(programa_key.split('_')[3:])
+            
+            tasa_exito = (datos['exitosas'] / datos['solicitudes_total'] * 100) if datos['solicitudes_total'] > 0 else 0
+            
+            if datos['tiempos_respuesta']:
+                prom_resp = np.mean(datos['tiempos_respuesta'])
+            else:
+                prom_resp = 0
+                
+            if datos['tiempos_atencion']:
+                prom_aten = np.mean(datos['tiempos_atencion'])
+            else:
+                prom_aten = 0
+            
+            reporte += f"""
+    📚 {programa_nombre} ({facultad_nombre}):
+    • Solicitudes atendidas satisfactoriamente: {datos['exitosas']}/{datos['solicitudes_total']} ({tasa_exito:.1f}%)
+    • Tiempo promedio respuesta: {prom_resp:.2f}ms
+    • Tiempo promedio atención: {prom_aten:.2f}ms
+    • Rechazadas: {datos['rechazadas']} | Errores: {datos['errores']}
+    """
+        
+        # Guardar reporte
+        nombre_reporte = f"{prefijo_archivo}_{timestamp}.txt"
+        with open(nombre_reporte, 'w', encoding='utf-8') as f:
+            f.write(reporte)
+        
+        # Crear gráficas
+        self._crear_graficas_escenario(resultados_facultad, resultados_programa, 
+                                    tiempos_respuesta, tiempos_atencion, 
+                                    titulo, f"{prefijo_archivo}_{timestamp}")
+        
+        print(reporte)
+        print(f"\n✓ Reporte guardado en: {nombre_reporte}")
+
+    def _crear_graficas_escenario(self, resultados_facultad, resultados_programa, 
+                                tiempos_respuesta, tiempos_atencion, titulo, filename_base):
+        """Crea gráficas para los escenarios"""
+        
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+        fig.suptitle(titulo, fontsize=16)
+        
+        # Gráfica 1: Tiempos de respuesta por facultad
+        facultades = list(resultados_facultad.keys())
+        tiempos_facultad = []
+        
+        for facultad in facultades:
+            if resultados_facultad[facultad]['tiempos_respuesta']:
+                tiempos_facultad.append(np.mean(resultados_facultad[facultad]['tiempos_respuesta']))
+            else:
+                tiempos_facultad.append(0)
+        
+        ax1.bar(range(len(facultades)), tiempos_facultad, color='skyblue', alpha=0.7)
+        ax1.set_title('Tiempo de Respuesta Promedio por Facultad')
+        ax1.set_ylabel('Tiempo (ms)')
+        ax1.set_xticks(range(len(facultades)))
+        ax1.set_xticklabels([f.split()[-1] for f in facultades], rotation=45)
+        ax1.grid(True, alpha=0.3)
+        
+        # Gráfica 2: Tasa de éxito por facultad
+        tasas_exito = []
+        for facultad in facultades:
+            datos = resultados_facultad[facultad]
+            total = datos['exitosas'] + datos['rechazadas'] + datos['errores']
+            tasa = (datos['exitosas'] / total * 100) if total > 0 else 0
+            tasas_exito.append(tasa)
+        
+        ax2.bar(range(len(facultades)), tasas_exito, color='lightgreen', alpha=0.7)
+        ax2.set_title('Tasa de Éxito por Facultad')
+        ax2.set_ylabel('Porcentaje (%)')
+        ax2.set_xticks(range(len(facultades)))
+        ax2.set_xticklabels([f.split()[-1] for f in facultades], rotation=45)
+        ax2.set_ylim(0, 100)
+        ax2.grid(True, alpha=0.3)
+        
+        # Gráfica 3: Distribución de tiempos de respuesta
+        if tiempos_respuesta:
+            ax3.hist(tiempos_respuesta, bins=20, alpha=0.7, color='orange', edgecolor='black')
+            ax3.set_title('Distribución de Tiempos de Respuesta')
+            ax3.set_xlabel('Tiempo (ms)')
+            ax3.set_ylabel('Frecuencia')
+            ax3.grid(True, alpha=0.3)
+        
+        # Gráfica 4: Comparación tiempos respuesta vs atención
+        if tiempos_respuesta and tiempos_atencion:
+            ax4.scatter(tiempos_respuesta, tiempos_atencion, alpha=0.6, color='purple')
+            ax4.set_title('Tiempo Respuesta vs Tiempo Atención')
+            ax4.set_xlabel('Tiempo Respuesta (ms)')
+            ax4.set_ylabel('Tiempo Atención (ms)')
+            ax4.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        # Guardar gráfica
+        plt.savefig(f"{filename_base}.png", dpi=300, bbox_inches='tight')
+        print(f"✓ Gráficas guardadas en: {filename_base}.png")
+        
+        plt.show()
+        
+
 
     def monitoreo_tiempo_real(self):
         """Monitoreo en tiempo real con gráficas actualizadas"""
