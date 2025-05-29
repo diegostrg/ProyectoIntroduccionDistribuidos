@@ -439,7 +439,7 @@ class Pruebador:
         
 
     def _generar_reporte_escenario(self, titulo, resultados_facultad, resultados_programa, 
-                                tiempos_respuesta, tiempos_atencion, inicio, fin, prefijo_archivo):
+                                 tiempos_respuesta, tiempos_atencion, inicio, fin, prefijo_archivo):
         """Genera reporte detallado para los escenarios"""
         
         duracion_total = fin - inicio
@@ -466,19 +466,19 @@ class Pruebador:
     {'='*80}
     Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     Duración total del escenario: {duracion_total:.2f} segundos
-
+    
     ESTADÍSTICAS GLOBALES:
     {'='*50}
     📊 Tiempo de respuesta (servidor a facultades):
-    • Promedio: {tiempo_resp_promedio:.2f}ms
-    • Mínimo: {tiempo_resp_min:.2f}ms
-    • Máximo: {tiempo_resp_max:.2f}ms
-
+       • Promedio: {tiempo_resp_promedio:.2f}ms
+       • Mínimo: {tiempo_resp_min:.2f}ms
+       • Máximo: {tiempo_resp_max:.2f}ms
+    
     ⏱️  Tiempo de atención (programa a respuesta):
-    • Promedio: {tiempo_aten_promedio:.2f}ms
-    • Mínimo: {tiempo_aten_min:.2f}ms
-    • Máximo: {tiempo_aten_max:.2f}ms
-
+       • Promedio: {tiempo_aten_promedio:.2f}ms
+       • Mínimo: {tiempo_aten_min:.2f}ms
+       • Máximo: {tiempo_aten_max:.2f}ms
+    
     RESULTADOS POR FACULTAD:
     {'='*50}
     """
@@ -494,37 +494,32 @@ class Pruebador:
             
             reporte += f"""
     🏛️  {facultad}:
-    • Total solicitudes: {total_solicitudes}
-    • Exitosas: {datos['exitosas']} ({tasa_exito:.1f}%)
-    • Rechazadas: {datos['rechazadas']}
-    • Errores: {datos['errores']}
-    • Tiempo promedio respuesta: {prom_facultad:.2f}ms
+       • Total solicitudes: {total_solicitudes}
+       • Exitosas: {datos['exitosas']} ({tasa_exito:.1f}%)
+       • Rechazadas: {datos['rechazadas']}
+       • Errores: {datos['errores']}
+       • Tiempo promedio respuesta: {prom_facultad:.2f}ms
     """
         
         reporte += f"""
-
+    
     RESULTADOS POR PROGRAMA:
     {'='*50}
     """
         
         for programa_key, datos in resultados_programa.items():
-            # Corregir el parsing de la clave del programa
+            # CORRECCIÓN: Parsing mejorado para el formato real
             try:
-                # Dividir la clave y reconstruir de forma segura
-                partes = programa_key.split('_')
-                if len(partes) >= 4:
-                    # Formato: "Facultad_de_XXX_Programa_N_de_XXX"
-                    facultad_nombre = '_'.join(partes[:3])  # "Facultad_de_XXX"
-                    programa_nombre = '_'.join(partes[3:])  # "Programa_N_de_XXX"
+                # El formato es: "Facultad de Ciencias Sociales_Programa 1 de Sociales"
+                if '_' in programa_key:
+                    partes = programa_key.split('_', 1)  # Dividir solo en la primera _
+                    facultad_display = partes[0]  # "Facultad de Ciencias Sociales"
+                    programa_display = partes[1]  # "Programa 1 de Sociales"
                 else:
-                    # Fallback si el formato es diferente
-                    facultad_nombre = "Facultad_Desconocida"
-                    programa_nombre = programa_key
+                    # Fallback si no hay _
+                    facultad_display = "Facultad Desconocida"
+                    programa_display = programa_key
                     
-                # Limpiar nombres para mostrar
-                facultad_display = facultad_nombre.replace('_', ' ')
-                programa_display = programa_nombre.replace('_', ' ')
-                
             except Exception as e:
                 print(f"Error procesando clave de programa: {programa_key} - {e}")
                 facultad_display = "Facultad Desconocida"
@@ -544,10 +539,10 @@ class Pruebador:
             
             reporte += f"""
     📚 {programa_display} ({facultad_display}):
-    • Solicitudes atendidas satisfactoriamente: {datos['exitosas']}/{datos['solicitudes_total']} ({tasa_exito:.1f}%)
-    • Tiempo promedio respuesta: {prom_resp:.2f}ms
-    • Tiempo promedio atención: {prom_aten:.2f}ms
-    • Rechazadas: {datos['rechazadas']} | Errores: {datos['errores']}
+       • Solicitudes atendidas satisfactoriamente: {datos['exitosas']}/{datos['solicitudes_total']} ({tasa_exito:.1f}%)
+       • Tiempo promedio respuesta: {prom_resp:.2f}ms
+       • Tiempo promedio atención: {prom_aten:.2f}ms
+       • Rechazadas: {datos['rechazadas']} | Errores: {datos['errores']}
     """
         
         # Guardar reporte
@@ -557,8 +552,8 @@ class Pruebador:
         
         # Crear gráficas
         self._crear_graficas_escenario(resultados_facultad, resultados_programa, 
-                                    tiempos_respuesta, tiempos_atencion, 
-                                    titulo, f"{prefijo_archivo}_{timestamp}")
+                                     tiempos_respuesta, tiempos_atencion, 
+                                     titulo, f"{prefijo_archivo}_{timestamp}")
         
         print(reporte)
         print(f"\n✓ Reporte guardado en: {nombre_reporte}")
