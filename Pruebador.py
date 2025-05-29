@@ -104,8 +104,8 @@ class Pruebador:
     # metodo para el escenario de la prueba 1
 
     def escenario_1_prueba_intensiva(self):
-        """Escenario 1: 5 facultades, 5 programas c/u, mínimo 7 aulas y 2 labs (o máximo 2 y 7)"""
-        print("\n[ESCENARIO 1] Prueba Intensiva: 5 Facultades x 5 Programas")
+        """Escenario 1: 5 facultades, 5 programas c/u, mínimo 7 aulas y 2 labs (o máximo 2 y 7) - CONCURRENTE"""
+        print("\n[ESCENARIO 1] Prueba Intensiva: 5 Facultades x 5 Programas - CONCURRENTE")
         print("Configuración: Mínimo 7 aulas y 2 laboratorios (o máximo 2 aulas y 7 laboratorios)")
         print("="*80)
         
@@ -114,16 +114,16 @@ class Pruebador:
         num_programas_por_facultad = 5
         num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
         
-        # Estructuras para recopilar datos
+        # Estructuras para recopilar datos (thread-safe)
+        import threading
+        lock = threading.Lock()
         resultados_por_facultad = {}
         resultados_por_programa = {}
         tiempos_respuesta_globales = []
         tiempos_atencion_globales = []
         
-        inicio_escenario = time.time()
-        
+        # Inicializar estructuras
         for facultad in facultades_seleccionadas:
-            print(f"\n🏛️  Procesando {facultad}...")
             resultados_por_facultad[facultad] = {
                 'tiempos_respuesta': [],
                 'exitosas': 0,
@@ -143,85 +143,122 @@ class Pruebador:
                     'errores': 0,
                     'solicitudes_total': num_solicitudes_por_programa
                 }
-                
-                print(f"  📚 {programa_nombre}:")
-                
-                for solicitud_num in range(num_solicitudes_por_programa):
-                    # Configuración del escenario 1: mínimo 7 aulas y 2 labs O máximo 2 aulas y 7 labs
-                    if random.choice([True, False]):
-                        # Opción A: Muchas aulas, pocos laboratorios
-                        salones = random.randint(7, 15)
-                        laboratorios = random.randint(2, 4)
-                    else:
-                        # Opción B: Pocas aulas, muchos laboratorios
-                        salones = random.randint(1, 2)
-                        laboratorios = random.randint(7, 12)
+        
+        def procesar_solicitud(facultad, programa_nombre, programa_key, solicitud_num):
+            """Función para procesar una solicitud individual en paralelo"""
+            # Configuración del escenario 1: mínimo 7 aulas y 2 labs O máximo 2 aulas y 7 labs
+            if random.choice([True, False]):
+                # Opción A: Muchas aulas, pocos laboratorios
+                salones = random.randint(7, 15)
+                laboratorios = random.randint(2, 4)
+            else:
+                # Opción B: Pocas aulas, muchos laboratorios
+                salones = random.randint(1, 2)
+                laboratorios = random.randint(7, 12)
+            
+            solicitud = self._crear_solicitud_autenticada(
+                facultad=facultad,
+                programa=programa_nombre,
+                salones=salones,
+                laboratorios=laboratorios
+            )
+            
+            # Medir tiempo de atención (desde solicitud hasta respuesta)
+            inicio_atencion = time.time()
+            respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+            fin_atencion = time.time()
+            
+            tiempo_atencion = fin_atencion - inicio_atencion
+            
+            # Actualizar resultados de forma thread-safe
+            with lock:
+                if tiempo_respuesta:
+                    # Datos por facultad
+                    resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
                     
-                    solicitud = self._crear_solicitud_autenticada(
-                        facultad=facultad,
-                        programa=programa_nombre,
-                        salones=salones,
-                        laboratorios=laboratorios
-                    )
+                    # Datos por programa
+                    resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                    resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
                     
-                    # Medir tiempo de atención (desde solicitud hasta respuesta)
-                    inicio_atencion = time.time()
-                    respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
-                    fin_atencion = time.time()
+                    # Datos globales
+                    tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
+                    tiempos_atencion_globales.append(tiempo_atencion * 1000)
                     
-                    tiempo_atencion = fin_atencion - inicio_atencion
+                    estado = respuesta.get("estado", "Error")
+                    servidor = respuesta.get("servidor", "Desconocido")
                     
-                    if tiempo_respuesta:
-                        # Datos por facultad
-                        resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
-                        
-                        # Datos por programa
-                        resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
-                        resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
-                        
-                        # Datos globales
-                        tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
-                        tiempos_atencion_globales.append(tiempo_atencion * 1000)
-                        
-                        estado = respuesta.get("estado", "Error")
-                        servidor = respuesta.get("servidor", "Desconocido")
-                        
-                        if estado == "Aceptado":
-                            resultados_por_facultad[facultad]['exitosas'] += 1
-                            resultados_por_programa[programa_key]['exitosas'] += 1
-                            status_symbol = "✅"
-                        elif estado == "Rechazado":
-                            resultados_por_facultad[facultad]['rechazadas'] += 1
-                            resultados_por_programa[programa_key]['rechazadas'] += 1
-                            status_symbol = "❌"
-                        else:
-                            resultados_por_facultad[facultad]['errores'] += 1
-                            resultados_por_programa[programa_key]['errores'] += 1
-                            status_symbol = "⚠️"
-                        
-                        print(f"    {status_symbol} Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
+                    if estado == "Aceptado":
+                        resultados_por_facultad[facultad]['exitosas'] += 1
+                        resultados_por_programa[programa_key]['exitosas'] += 1
+                        status_symbol = "✅"
+                    elif estado == "Rechazado":
+                        resultados_por_facultad[facultad]['rechazadas'] += 1
+                        resultados_por_programa[programa_key]['rechazadas'] += 1
+                        status_symbol = "❌"
                     else:
                         resultados_por_facultad[facultad]['errores'] += 1
                         resultados_por_programa[programa_key]['errores'] += 1
-                        print(f"    ⚠️  Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
+                        status_symbol = "⚠️"
+                    
+                    print(f"    {status_symbol} {facultad.split()[-1]} - {programa_nombre} - Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
+                else:
+                    resultados_por_facultad[facultad]['errores'] += 1
+                    resultados_por_programa[programa_key]['errores'] += 1
+                    print(f"    ⚠️  {facultad.split()[-1]} - {programa_nombre} - Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
+        
+        print(f"\n🚀 Iniciando {len(facultades_seleccionadas) * num_programas_por_facultad * num_solicitudes_por_programa} solicitudes CONCURRENTES...")
+        
+        inicio_escenario = time.time()
+        
+        # Crear todos los hilos para TODAS las solicitudes al mismo tiempo
+        hilos = []
+        
+        for facultad in facultades_seleccionadas:
+            print(f"🏛️  Preparando {facultad}...")
+            
+            for programa_num in range(1, num_programas_por_facultad + 1):
+                programa_nombre = f"Programa {programa_num} de {facultad.split()[-1]}"
+                programa_key = f"{facultad}_{programa_nombre}"
+                
+                print(f"  📚 Preparando {programa_nombre}...")
+                
+                for solicitud_num in range(num_solicitudes_por_programa):
+                    # Crear hilo para cada solicitud
+                    hilo = threading.Thread(
+                        target=procesar_solicitud,
+                        args=(facultad, programa_nombre, programa_key, solicitud_num)
+                    )
+                    hilos.append(hilo)
+        
+        print(f"\n⚡ LANZANDO TODAS LAS {len(hilos)} SOLICITUDES SIMULTÁNEAMENTE...")
+        
+        # Iniciar TODOS los hilos al mismo tiempo
+        for hilo in hilos:
+            hilo.start()
+        
+        # Esperar a que terminen TODOS los hilos
+        for hilo in hilos:
+            hilo.join()
         
         fin_escenario = time.time()
         
+        print(f"\n✅ Todas las solicitudes completadas en {fin_escenario - inicio_escenario:.2f} segundos")
+        
         # Generar reporte detallado
         self._generar_reporte_escenario(
-            "ESCENARIO 1 - PRUEBA INTENSIVA",
+            "ESCENARIO 1 - PRUEBA INTENSIVA (CONCURRENTE)",
             resultados_por_facultad,
             resultados_por_programa,
             tiempos_respuesta_globales,
             tiempos_atencion_globales,
             inicio_escenario,
             fin_escenario,
-            "escenario_1"
+            "escenario_1_concurrente"
         )
 
     def escenario_2_prueba_maxima(self):
-        """Escenario 2: 5 facultades, 5 programas c/u, máximo 10 aulas y 4 labs (o máximo 4 y 10)"""
-        print("\n[ESCENARIO 2] Prueba Máxima: 5 Facultades x 5 Programas")
+        """Escenario 2: 5 facultades, 5 programas c/u, máximo 10 aulas y 4 labs (o máximo 4 y 10) - CONCURRENTE"""
+        print("\n[ESCENARIO 2] Prueba Máxima: 5 Facultades x 5 Programas - CONCURRENTE")
         print("Configuración: Máximo 10 aulas y 4 laboratorios (o máximo 4 aulas y 10 laboratorios)")
         print("="*80)
         
@@ -230,16 +267,16 @@ class Pruebador:
         num_programas_por_facultad = 5
         num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
         
-        # Estructuras para recopilar datos
+        # Estructuras para recopilar datos (thread-safe)
+        import threading
+        lock = threading.Lock()
         resultados_por_facultad = {}
         resultados_por_programa = {}
         tiempos_respuesta_globales = []
         tiempos_atencion_globales = []
         
-        inicio_escenario = time.time()
-        
+        # Inicializar estructuras
         for facultad in facultades_seleccionadas:
-            print(f"\n🏛️  Procesando {facultad}...")
             resultados_por_facultad[facultad] = {
                 'tiempos_respuesta': [],
                 'exitosas': 0,
@@ -259,81 +296,147 @@ class Pruebador:
                     'errores': 0,
                     'solicitudes_total': num_solicitudes_por_programa
                 }
-                
-                print(f"  📚 {programa_nombre}:")
-                
-                for solicitud_num in range(num_solicitudes_por_programa):
-                    # Configuración del escenario 2: máximo 10 aulas y 4 labs O máximo 4 aulas y 10 labs
-                    if random.choice([True, False]):
-                        # Opción A: Muchas aulas, pocos laboratorios
-                        salones = random.randint(5, 10)
-                        laboratorios = random.randint(1, 4)
-                    else:
-                        # Opción B: Pocas aulas, muchos laboratorios
-                        salones = random.randint(1, 4)
-                        laboratorios = random.randint(5, 10)
+        
+        def procesar_solicitud(facultad, programa_nombre, programa_key, solicitud_num):
+            """Función para procesar una solicitud individual en paralelo"""
+            # Configuración del escenario 2: máximo 10 aulas y 4 labs O máximo 4 aulas y 10 labs
+            if random.choice([True, False]):
+                # Opción A: Muchas aulas, pocos laboratorios
+                salones = random.randint(5, 10)
+                laboratorios = random.randint(1, 4)
+            else:
+                # Opción B: Pocas aulas, muchos laboratorios
+                salones = random.randint(1, 4)
+                laboratorios = random.randint(5, 10)
+            
+            solicitud = self._crear_solicitud_autenticada(
+                facultad=facultad,
+                programa=programa_nombre,
+                salones=salones,
+                laboratorios=laboratorios
+            )
+            
+            # Medir tiempo de atención (desde solicitud hasta respuesta)
+            inicio_atencion = time.time()
+            respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+            fin_atencion = time.time()
+            
+            tiempo_atencion = fin_atencion - inicio_atencion
+            
+            # Actualizar resultados de forma thread-safe
+            with lock:
+                if tiempo_respuesta:
+                    # Datos por facultad
+                    resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
                     
-                    solicitud = self._crear_solicitud_autenticada(
-                        facultad=facultad,
-                        programa=programa_nombre,
-                        salones=salones,
-                        laboratorios=laboratorios
-                    )
+                    # Datos por programa
+                    resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                    resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
                     
-                    # Medir tiempo de atención (desde solicitud hasta respuesta)
-                    inicio_atencion = time.time()
-                    respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
-                    fin_atencion = time.time()
+                    # Datos globales
+                    tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
+                    tiempos_atencion_globales.append(tiempo_atencion * 1000)
                     
-                    tiempo_atencion = fin_atencion - inicio_atencion
+                    estado = respuesta.get("estado", "Error")
+                    servidor = respuesta.get("servidor", "Desconocido")
                     
-                    if tiempo_respuesta:
-                        # Datos por facultad
-                        resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
-                        
-                        # Datos por programa
-                        resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
-                        resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
-                        
-                        # Datos globales
-                        tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
-                        tiempos_atencion_globales.append(tiempo_atencion * 1000)
-                        
-                        estado = respuesta.get("estado", "Error")
-                        servidor = respuesta.get("servidor", "Desconocido")
-                        
-                        if estado == "Aceptado":
-                            resultados_por_facultad[facultad]['exitosas'] += 1
-                            resultados_por_programa[programa_key]['exitosas'] += 1
-                            status_symbol = "✅"
-                        elif estado == "Rechazado":
-                            resultados_por_facultad[facultad]['rechazadas'] += 1
-                            resultados_por_programa[programa_key]['rechazadas'] += 1
-                            status_symbol = "❌"
-                        else:
-                            resultados_por_facultad[facultad]['errores'] += 1
-                            resultados_por_programa[programa_key]['errores'] += 1
-                            status_symbol = "⚠️"
-                        
-                        print(f"    {status_symbol} Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
+                    if estado == "Aceptado":
+                        resultados_por_facultad[facultad]['exitosas'] += 1
+                        resultados_por_programa[programa_key]['exitosas'] += 1
+                        status_symbol = "✅"
+                    elif estado == "Rechazado":
+                        resultados_por_facultad[facultad]['rechazadas'] += 1
+                        resultados_por_programa[programa_key]['rechazadas'] += 1
+                        status_symbol = "❌"
                     else:
                         resultados_por_facultad[facultad]['errores'] += 1
                         resultados_por_programa[programa_key]['errores'] += 1
-                        print(f"    ⚠️  Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
+                        status_symbol = "⚠️"
+                    
+                    print(f"    {status_symbol} {facultad.split()[-1]} - {programa_nombre} - Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
+                else:
+                    resultados_por_facultad[facultad]['errores'] += 1
+                    resultados_por_programa[programa_key]['errores'] += 1
+                    print(f"    ⚠️  {facultad.split()[-1]} - {programa_nombre} - Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
+        
+        print(f"\n🚀 Iniciando {len(facultades_seleccionadas) * num_programas_por_facultad * num_solicitudes_por_programa} solicitudes CONCURRENTES...")
+        
+        inicio_escenario = time.time()
+        
+        # Crear todos los hilos para TODAS las solicitudes al mismo tiempo
+        hilos = []
+        
+        for facultad in facultades_seleccionadas:
+            print(f"🏛️  Preparando {facultad}...")
+            
+            for programa_num in range(1, num_programas_por_facultad + 1):
+                programa_nombre = f"Programa {programa_num} de {facultad.split()[-1]}"
+                programa_key = f"{facultad}_{programa_nombre}"
+                
+                print(f"  📚 Preparando {programa_nombre}...")
+                
+                for solicitud_num in range(num_solicitudes_por_programa):
+                    # Crear hilo para cada solicitud
+                    hilo = threading.Thread(
+                        target=procesar_solicitud,
+                        args=(facultad, programa_nombre, programa_key, solicitud_num)
+                    )
+                    hilos.append(hilo)
+        
+        print(f"\n⚡ LANZANDO TODAS LAS {len(hilos)} SOLICITUDES SIMULTÁNEAMENTE...")
+        
+        # Iniciar TODOS los hilos al mismo tiempo
+        for hilo in hilos:
+            hilo.start()
+        
+        # Esperar a que terminen TODOS los hilos
+        for hilo in hilos:
+            hilo.join()
         
         fin_escenario = time.time()
         
+        print(f"\n✅ Todas las solicitudes completadas en {fin_escenario - inicio_escenario:.2f} segundos")
+        
         # Generar reporte detallado
         self._generar_reporte_escenario(
-            "ESCENARIO 2 - PRUEBA MÁXIMA",
+            "ESCENARIO 2 - PRUEBA MÁXIMA (CONCURRENTE)",
             resultados_por_facultad,
             resultados_por_programa,
             tiempos_respuesta_globales,
             tiempos_atencion_globales,
             inicio_escenario,
             fin_escenario,
-            "escenario_2"
+            "escenario_2_concurrente"
         )
+
+    def _usar_broker_para_solicitud(self, solicitud):
+        """Helper para enviar solicitudes a través del broker - Thread Safe"""
+        socket = None
+        try:
+            # Crear nuevo contexto ZMQ para cada hilo (thread-safe)
+            context_local = zmq.Context()
+            socket = context_local.socket(zmq.REQ)
+            socket.setsockopt(zmq.RCVTIMEO, 15000)  # Timeout más alto para concurrencia
+            ip = self._get_ip_for_port(7001)  # Puerto del broker
+            socket.connect(f"tcp://{ip}:7001")
+            
+            inicio = time.time()
+            socket.send_json(solicitud)
+            respuesta = socket.recv_json()
+            fin = time.time()
+            
+            return respuesta, fin - inicio
+            
+        except Exception as e:
+            return {"estado": "Error", "mensaje": str(e)}, None
+        finally:
+            if socket:
+                socket.close()
+            try:
+                context_local.term()
+            except:
+                pass
+        
 
     def _generar_reporte_escenario(self, titulo, resultados_facultad, resultados_programa, 
                                 tiempos_respuesta, tiempos_atencion, inicio, fin, prefijo_archivo):
