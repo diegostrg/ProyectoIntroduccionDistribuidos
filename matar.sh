@@ -3,7 +3,7 @@
 echo "🛑 Forzando cierre de procesos del sistema distribuido..."
 
 # Lista de nombres clave (archivos .py o nombres comunes de procesos Python)
-nombres=("DTI.py" "DTIBackup.py" "broker.py" "healthcheck.py" "facultad.py" "programa.py")
+nombres=("DTI.py" "DTIBackup.py" "broker.py" "healthcheck.py" "facultad.py" "programa.py" "Pruebador.py")
 
 # Matar por nombre exacto del archivo .py usando pkill -f (match completo de línea de comando)
 for nombre in "${nombres[@]}"; do
