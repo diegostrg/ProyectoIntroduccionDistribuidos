@@ -240,14 +240,24 @@ class Pruebador:
             ax.grid(True, alpha=0.3)
     
     def comparacion_rendimiento_servidores(self):
-        """Compara el rendimiento del sistema vía BROKER"""
+        """Compara el rendimiento del sistema vía BROKER con gráficas"""
         print("\n[COMPARACIÓN] Analizando rendimiento del sistema vía BROKER...")
         
         num_pruebas = int(input("Número de pruebas (default 20): ") or "20")
         
-        print(f"Probando sistema vía BROKER...")
+        print(f"Probando sistema vía BROKER con {num_pruebas} solicitudes...")
+        
+        # Datos para recopilar
         tiempos = []
+        estados = []
+        servidores_usados = []
+        timestamps = []
         exitosas = 0
+        rechazadas = 0
+        errores = 0
+        
+        # Contador de servidores
+        conteo_servidores = {}
         
         for i in range(num_pruebas):
             solicitud = self._crear_solicitud_autenticada(
@@ -260,24 +270,187 @@ class Pruebador:
             respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
             
             if tiempo_respuesta:
-                tiempo_respuesta_ms = tiempo_respuesta * 1000  # ms
+                tiempo_respuesta_ms = tiempo_respuesta * 1000  # Convertir a ms
                 tiempos.append(tiempo_respuesta_ms)
                 
-                if respuesta.get("estado") == "Aceptado":
-                    exitosas += 1
+                estado = respuesta.get("estado", "Error")
+                estados.append(estado)
                 
                 servidor_usado = respuesta.get("servidor", "Desconocido")
-                print(f"  Prueba {i+1}/{num_pruebas}: {tiempo_respuesta_ms:.2f}ms (Servidor: {servidor_usado})")
+                servidores_usados.append(servidor_usado)
+                
+                # Contar servidores
+                conteo_servidores[servidor_usado] = conteo_servidores.get(servidor_usado, 0) + 1
+                
+                timestamps.append(datetime.now())
+                
+                if estado == "Aceptado":
+                    exitosas += 1
+                elif estado == "Rechazado":
+                    rechazadas += 1
+                
+                print(f"  Prueba {i+1}/{num_pruebas}: {tiempo_respuesta_ms:.2f}ms - {estado} (Servidor: {servidor_usado})")
             else:
+                errores += 1
+                tiempos.append(0)  # Para mantener la secuencia
+                estados.append("Error")
+                servidores_usados.append("Error")
+                timestamps.append(datetime.now())
                 print(f"  Prueba {i+1}/{num_pruebas}: Error - {respuesta.get('mensaje', 'Desconocido')}")
         
         # Mostrar estadísticas
         if tiempos:
-            print(f"\n--- ESTADÍSTICAS BROKER ---")
-            print(f"Pruebas exitosas: {exitosas}/{num_pruebas}")
-            print(f"Tiempo promedio: {sum(tiempos)/len(tiempos):.2f}ms")
-            print(f"Tiempo mínimo: {min(tiempos):.2f}ms")
-            print(f"Tiempo máximo: {max(tiempos):.2f}ms")
+            tiempos_validos = [t for t in tiempos if t > 0]
+            if tiempos_validos:
+                print(f"\n--- ESTADÍSTICAS BROKER ---")
+                print(f"Pruebas exitosas: {exitosas}/{num_pruebas}")
+                print(f"Pruebas rechazadas: {rechazadas}/{num_pruebas}")
+                print(f"Errores: {errores}/{num_pruebas}")
+                print(f"Tiempo promedio: {sum(tiempos_validos)/len(tiempos_validos):.2f}ms")
+                print(f"Tiempo mínimo: {min(tiempos_validos):.2f}ms")
+                print(f"Tiempo máximo: {max(tiempos_validos):.2f}ms")
+                print(f"Distribución de servidores: {conteo_servidores}")
+        
+        # Crear gráficas
+        self._crear_graficas_broker_comparacion(
+            tiempos, estados, servidores_usados, timestamps, 
+            num_pruebas, exitosas, rechazadas, errores, conteo_servidores
+        )
+    
+    def _crear_graficas_broker_comparacion(self, tiempos, estados, servidores_usados, timestamps, 
+                                         num_pruebas, exitosas, rechazadas, errores, conteo_servidores):
+        """Crea gráficas comparativas del rendimiento vía BROKER"""
+        
+        # Filtrar tiempos válidos para gráficas
+        tiempos_validos = [t for t in tiempos if t > 0]
+        
+        if not tiempos_validos:
+            print("❌ No hay datos válidos para generar gráficas")
+            return
+        
+        # Crear figura con subplots
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+        fig.suptitle('Análisis de Rendimiento del Sistema vía BROKER', fontsize=16)
+        
+        # Gráfica 1: Histograma de tiempos de respuesta
+        ax1.hist(tiempos_validos, bins=min(15, len(tiempos_validos)), alpha=0.7, 
+                 color='skyblue', edgecolor='black')
+        ax1.set_title('Distribución de Tiempos de Respuesta')
+        ax1.set_xlabel('Tiempo (ms)')
+        ax1.set_ylabel('Frecuencia')
+        ax1.grid(True, alpha=0.3)
+        
+        # Añadir estadísticas al histograma
+        ax1.axvline(np.mean(tiempos_validos), color='red', linestyle='--', 
+                    label=f'Promedio: {np.mean(tiempos_validos):.2f}ms')
+        ax1.axvline(np.median(tiempos_validos), color='green', linestyle='--', 
+                    label=f'Mediana: {np.median(tiempos_validos):.2f}ms')
+        ax1.legend()
+        
+        # Gráfica 2: Distribución de estados
+        estados_conteo = {'Aceptado': exitosas, 'Rechazado': rechazadas, 'Error': errores}
+        colores_estados = {'Aceptado': 'green', 'Rechazado': 'orange', 'Error': 'red'}
+        
+        estados_nombres = list(estados_conteo.keys())
+        estados_valores = list(estados_conteo.values())
+        colores = [colores_estados[estado] for estado in estados_nombres]
+        
+        wedges, texts, autotexts = ax2.pie(estados_valores, labels=estados_nombres, 
+                                           colors=colores, autopct='%1.1f%%', startangle=90)
+        ax2.set_title('Distribución de Estados de Respuesta')
+        
+        # Gráfica 3: Uso de servidores
+        if conteo_servidores:
+            servidores_nombres = list(conteo_servidores.keys())
+            servidores_valores = list(conteo_servidores.values())
+            colores_servidores = ['blue', 'red', 'green', 'purple'][:len(servidores_nombres)]
+            
+            bars = ax3.bar(servidores_nombres, servidores_valores, color=colores_servidores, alpha=0.7)
+            ax3.set_title('Distribución de Carga entre Servidores')
+            ax3.set_ylabel('Número de Solicitudes')
+            ax3.grid(True, alpha=0.3)
+            
+            # Añadir valores encima de las barras
+            for bar, valor in zip(bars, servidores_valores):
+                height = bar.get_height()
+                ax3.text(bar.get_x() + bar.get_width()/2., height + 0.5,
+                        f'{valor}', ha='center', va='bottom')
+        
+        # Gráfica 4: Evolución temporal de tiempos de respuesta
+        if len(timestamps) == len(tiempos):
+            # Crear índices para el eje X
+            indices = range(len(tiempos))
+            
+            # Separar por servidor para diferentes colores
+            colores_servidor = {'dti': 'blue', 'backup': 'red', 'Error': 'gray', 'Desconocido': 'black'}
+            
+            for servidor in set(servidores_usados):
+                indices_servidor = [i for i, s in enumerate(servidores_usados) if s == servidor]
+                tiempos_servidor = [tiempos[i] for i in indices_servidor]
+                
+                if tiempos_servidor and servidor != 'Error':
+                    ax4.scatter(indices_servidor, tiempos_servidor, 
+                               label=f'Servidor {servidor}', 
+                               color=colores_servidor.get(servidor, 'purple'),
+                               alpha=0.7, s=50)
+            
+            # Línea de tendencia para todos los tiempos válidos
+            indices_validos = [i for i, t in enumerate(tiempos) if t > 0]
+            tiempos_validos_orden = [tiempos[i] for i in indices_validos]
+            
+            if len(indices_validos) > 1:
+                z = np.polyfit(indices_validos, tiempos_validos_orden, 1)
+                p = np.poly1d(z)
+                ax4.plot(indices_validos, p(indices_validos), "k--", alpha=0.5, 
+                        label=f'Tendencia: {z[0]:.2f}x + {z[1]:.2f}')
+            
+            ax4.set_title('Evolución Temporal de Tiempos de Respuesta')
+            ax4.set_xlabel('Número de Solicitud')
+            ax4.set_ylabel('Tiempo (ms)')
+            ax4.legend()
+            ax4.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        
+        # Guardar gráfica
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"rendimiento_broker_comparacion_{timestamp}.png"
+        plt.savefig(filename, dpi=300, bbox_inches='tight')
+        print(f"\n✓ Gráficas guardadas en: {filename}")
+        
+        # Crear reporte de texto con las estadísticas
+        reporte = f"""
+    REPORTE DE COMPARACIÓN - SISTEMA BROKER
+    {'='*50}
+    Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    Número de pruebas: {num_pruebas}
+    
+    ESTADÍSTICAS GENERALES:
+    - Solicitudes exitosas: {exitosas} ({exitosas/num_pruebas*100:.1f}%)
+    - Solicitudes rechazadas: {rechazadas} ({rechazadas/num_pruebas*100:.1f}%)
+    - Errores: {errores} ({errores/num_pruebas*100:.1f}%)
+    
+    TIEMPOS DE RESPUESTA:
+    - Promedio: {np.mean(tiempos_validos):.2f}ms
+    - Mediana: {np.median(tiempos_validos):.2f}ms
+    - Mínimo: {min(tiempos_validos):.2f}ms
+    - Máximo: {max(tiempos_validos):.2f}ms
+    - Desviación estándar: {np.std(tiempos_validos):.2f}ms
+    
+    DISTRIBUCIÓN DE SERVIDORES:
+    """
+        
+        for servidor, count in conteo_servidores.items():
+            porcentaje = (count / sum(conteo_servidores.values())) * 100
+            reporte += f"- {servidor}: {count} solicitudes ({porcentaje:.1f}%)\n"
+        
+        # Guardar reporte
+        nombre_reporte = f"reporte_comparacion_broker_{timestamp}.txt"
+        with open(nombre_reporte, 'w') as f:
+            f.write(reporte)
+        
+        print(f"✓ Reporte guardado en: {nombre_reporte}")
+        plt.show()
     
     def _crear_graficas_comparacion(self, resultados, num_pruebas):
         """Crea gráficas comparativas de rendimiento"""
