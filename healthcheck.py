@@ -19,6 +19,9 @@ TIMEOUT = 2.0   # timeout de espera
 
 context = zmq.Context()
 
+    # Este programa debe llevar la ip 10.43.96.34
+
+
 # Socket para notificar al broker
 notificador = context.socket(zmq.PUB)
 notificador.bind(f"tcp://*:{BROKER_PUB_PORT}")

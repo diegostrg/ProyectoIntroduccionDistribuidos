@@ -11,6 +11,9 @@ class Facultad:
         self.context = zmq.Context()
         self.password_facultad = None
         
+
+        
+
         # Sistema de autenticación para programas
         self.auth = AutenticacionFacultad(nombre)
 

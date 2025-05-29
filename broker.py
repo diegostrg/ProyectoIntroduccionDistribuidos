@@ -7,6 +7,9 @@ class BrokerBalanceador:
     def __init__(self):
         self.context = zmq.Context()
         
+        # Este programa debe llevar la ip 10.43.96.34
+
+
         # Conexiones a servidores DTI
         self.backend_dti = self.context.socket(zmq.DEALER)
         self.backend_dti.connect("tcp://localhost:6000")

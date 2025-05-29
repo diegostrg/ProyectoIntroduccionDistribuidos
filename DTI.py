@@ -11,6 +11,8 @@ class DTI:
         self.receptor = self.context.socket(zmq.REP)
         self.receptor.bind(f"tcp://*:{puerto_rep}")
 
+        # Este servidor debe usar la ip 10.43.103.206
+
         # Socket PUSH para sincronizar con el backup
         self.push_backup = self.context.socket(zmq.PUSH)
         self.push_backup.connect(f"tcp://{backup_ip}:{backup_port}")
