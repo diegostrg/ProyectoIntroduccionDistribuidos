@@ -105,124 +105,122 @@ class Pruebador:
 
     def escenario_1_prueba_intensiva(self):
         """Escenario 1: 5 facultades, 5 programas c/u, mínimo 7 aulas y 2 labs (o máximo 2 y 7)"""
-    print("\n[ESCENARIO 1] Prueba Intensiva: 5 Facultades x 5 Programas")
-    print("Configuración: Mínimo 7 aulas y 2 laboratorios (o máximo 2 aulas y 7 laboratorios)")
-    print("="*80)
-    
-    # Seleccionar 5 facultades
-    facultades_seleccionadas = list(self.credenciales_facultades.keys())[:5]
-    num_programas_por_facultad = 5
-    num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
-    
-    # Estructuras para recopilar datos
-    resultados_por_facultad = {}
-    resultados_por_programa = {}
-    tiempos_respuesta_globales = []
-    tiempos_atencion_globales = []
-    
-    inicio_escenario = time.time()
-    
-    for facultad in facultades_seleccionadas:
-        print(f"\n🏛️  Procesando {facultad}...")
-        resultados_por_facultad[facultad] = {
-            'tiempos_respuesta': [],
-            'exitosas': 0,
-            'rechazadas': 0,
-            'errores': 0
-        }
+        print("\n[ESCENARIO 1] Prueba Intensiva: 5 Facultades x 5 Programas")
+        print("Configuración: Mínimo 7 aulas y 2 laboratorios (o máximo 2 aulas y 7 laboratorios)")
+        print("="*80)
         
-        for programa_num in range(1, num_programas_por_facultad + 1):
-            programa_nombre = f"Programa {programa_num} de {facultad.split()[-1]}"
-            programa_key = f"{facultad}_{programa_nombre}"
-            
-            resultados_por_programa[programa_key] = {
+        # Seleccionar 5 facultades
+        facultades_seleccionadas = list(self.credenciales_facultades.keys())[:5]
+        num_programas_por_facultad = 5
+        num_solicitudes_por_programa = int(input("Solicitudes por programa (default 3): ") or "3")
+        
+        # Estructuras para recopilar datos
+        resultados_por_facultad = {}
+        resultados_por_programa = {}
+        tiempos_respuesta_globales = []
+        tiempos_atencion_globales = []
+        
+        inicio_escenario = time.time()
+        
+        for facultad in facultades_seleccionadas:
+            print(f"\n🏛️  Procesando {facultad}...")
+            resultados_por_facultad[facultad] = {
                 'tiempos_respuesta': [],
-                'tiempos_atencion': [],
                 'exitosas': 0,
                 'rechazadas': 0,
-                'errores': 0,
-                'solicitudes_total': num_solicitudes_por_programa
+                'errores': 0
             }
             
-            print(f"  📚 {programa_nombre}:")
-            
-            for solicitud_num in range(num_solicitudes_por_programa):
-                # Configuración del escenario 1: mínimo 7 aulas y 2 labs O máximo 2 aulas y 7 labs
-                if random.choice([True, False]):
-                    # Opción A: Muchas aulas, pocos laboratorios
-                    salones = random.randint(7, 15)
-                    laboratorios = random.randint(2, 4)
-                else:
-                    # Opción B: Pocas aulas, muchos laboratorios
-                    salones = random.randint(1, 2)
-                    laboratorios = random.randint(7, 12)
+            for programa_num in range(1, num_programas_por_facultad + 1):
+                programa_nombre = f"Programa {programa_num} de {facultad.split()[-1]}"
+                programa_key = f"{facultad}_{programa_nombre}"
                 
-                solicitud = self._crear_solicitud_autenticada(
-                    facultad=facultad,
-                    programa=programa_nombre,
-                    salones=salones,
-                    laboratorios=laboratorios
-                )
+                resultados_por_programa[programa_key] = {
+                    'tiempos_respuesta': [],
+                    'tiempos_atencion': [],
+                    'exitosas': 0,
+                    'rechazadas': 0,
+                    'errores': 0,
+                    'solicitudes_total': num_solicitudes_por_programa
+                }
                 
-                # Medir tiempo de atención (desde solicitud hasta respuesta)
-                inicio_atencion = time.time()
-                respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
-                fin_atencion = time.time()
+                print(f"  📚 {programa_nombre}:")
                 
-                tiempo_atencion = fin_atencion - inicio_atencion
-                
-                if tiempo_respuesta:
-                    # Datos por facultad
-                    resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                for solicitud_num in range(num_solicitudes_por_programa):
+                    # Configuración del escenario 1: mínimo 7 aulas y 2 labs O máximo 2 aulas y 7 labs
+                    if random.choice([True, False]):
+                        # Opción A: Muchas aulas, pocos laboratorios
+                        salones = random.randint(7, 15)
+                        laboratorios = random.randint(2, 4)
+                    else:
+                        # Opción B: Pocas aulas, muchos laboratorios
+                        salones = random.randint(1, 2)
+                        laboratorios = random.randint(7, 12)
                     
-                    # Datos por programa
-                    resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
-                    resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
+                    solicitud = self._crear_solicitud_autenticada(
+                        facultad=facultad,
+                        programa=programa_nombre,
+                        salones=salones,
+                        laboratorios=laboratorios
+                    )
                     
-                    # Datos globales
-                    tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
-                    tiempos_atencion_globales.append(tiempo_atencion * 1000)
+                    # Medir tiempo de atención (desde solicitud hasta respuesta)
+                    inicio_atencion = time.time()
+                    respuesta, tiempo_respuesta = self._usar_broker_para_solicitud(solicitud)
+                    fin_atencion = time.time()
                     
-                    estado = respuesta.get("estado", "Error")
-                    servidor = respuesta.get("servidor", "Desconocido")
+                    tiempo_atencion = fin_atencion - inicio_atencion
                     
-                    if estado == "Aceptado":
-                        resultados_por_facultad[facultad]['exitosas'] += 1
-                        resultados_por_programa[programa_key]['exitosas'] += 1
-                        status_symbol = "✅"
-                    elif estado == "Rechazado":
-                        resultados_por_facultad[facultad]['rechazadas'] += 1
-                        resultados_por_programa[programa_key]['rechazadas'] += 1
-                        status_symbol = "❌"
+                    if tiempo_respuesta:
+                        # Datos por facultad
+                        resultados_por_facultad[facultad]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                        
+                        # Datos por programa
+                        resultados_por_programa[programa_key]['tiempos_respuesta'].append(tiempo_respuesta * 1000)
+                        resultados_por_programa[programa_key]['tiempos_atencion'].append(tiempo_atencion * 1000)
+                        
+                        # Datos globales
+                        tiempos_respuesta_globales.append(tiempo_respuesta * 1000)
+                        tiempos_atencion_globales.append(tiempo_atencion * 1000)
+                        
+                        estado = respuesta.get("estado", "Error")
+                        servidor = respuesta.get("servidor", "Desconocido")
+                        
+                        if estado == "Aceptado":
+                            resultados_por_facultad[facultad]['exitosas'] += 1
+                            resultados_por_programa[programa_key]['exitosas'] += 1
+                            status_symbol = "✅"
+                        elif estado == "Rechazado":
+                            resultados_por_facultad[facultad]['rechazadas'] += 1
+                            resultados_por_programa[programa_key]['rechazadas'] += 1
+                            status_symbol = "❌"
+                        else:
+                            resultados_por_facultad[facultad]['errores'] += 1
+                            resultados_por_programa[programa_key]['errores'] += 1
+                            status_symbol = "⚠️"
+                        
+                        print(f"    {status_symbol} Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
                     else:
                         resultados_por_facultad[facultad]['errores'] += 1
                         resultados_por_programa[programa_key]['errores'] += 1
-                        status_symbol = "⚠️"
-                    
-                    print(f"    {status_symbol} Sol {solicitud_num+1}: {estado} ({tiempo_respuesta*1000:.1f}ms) - S:{salones} L:{laboratorios} - {servidor}")
-                else:
-                    resultados_por_facultad[facultad]['errores'] += 1
-                    resultados_por_programa[programa_key]['errores'] += 1
-                    print(f"    ⚠️  Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
-    
-    fin_escenario = time.time()
-    
-    # Generar reporte detallado
-    self._generar_reporte_escenario(
-        "ESCENARIO 1 - PRUEBA INTENSIVA",
-        resultados_por_facultad,
-        resultados_por_programa,
-        tiempos_respuesta_globales,
-        tiempos_atencion_globales,
-        inicio_escenario,
-        fin_escenario,
-        "escenario_1"
-    )
+                        print(f"    ⚠️  Sol {solicitud_num+1}: Error - S:{salones} L:{laboratorios}")
+        
+        fin_escenario = time.time()
+        
+        # Generar reporte detallado
+        self._generar_reporte_escenario(
+            "ESCENARIO 1 - PRUEBA INTENSIVA",
+            resultados_por_facultad,
+            resultados_por_programa,
+            tiempos_respuesta_globales,
+            tiempos_atencion_globales,
+            inicio_escenario,
+            fin_escenario,
+            "escenario_1"
+        )
 
     def escenario_2_prueba_maxima(self):
-        """
-        Escenario 2: 5 facultades, 5 programas c/u, máximo 10 aulas y 4 labs (o máximo 4 y 10)
-        """
+        """Escenario 2: 5 facultades, 5 programas c/u, máximo 10 aulas y 4 labs (o máximo 4 y 10)"""
         print("\n[ESCENARIO 2] Prueba Máxima: 5 Facultades x 5 Programas")
         print("Configuración: Máximo 10 aulas y 4 laboratorios (o máximo 4 aulas y 10 laboratorios)")
         print("="*80)
@@ -1825,6 +1823,10 @@ class Pruebador:
                         self.prueba_seguridad_completa()
                     elif opcion == "19":
                         self.mostrar_info_archivos_autenticacion()
+                    elif opcion == "20":
+                        self.escenario_1_prueba_intensiva()
+                    elif opcion == "21":
+                        self.escenario_2_prueba_maxima()
                     else:
                         print("❌ Opción no válida")
                     
