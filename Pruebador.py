@@ -339,11 +339,11 @@ class Pruebador:
         # Colores por servidor
         colores_servidor = {
             'dti': '#2E86AB',           # Azul DTI
-            'backup': '#A23B72',        # Rojo/Rosa Backup
+            'backup': '#C73E1D',        # Rojo/Rosa Backup
             'DTI': '#2E86AB',           # Azul DTI (por si acaso)
-            'Backup': '#A23B72',        # Rojo/Rosa Backup (por si acaso)
+            'Backup': '#C73E1D',        # Rojo/Rosa Backup (por si acaso)
             'Error': '#F18F01',         # Naranja Error
-            'Desconocido': '#C73E1D'    # Rojo Error
+            'Desconocido': '#FFFFFF'    # Rojo Error
         }
         
         # Crear figura con subplots
