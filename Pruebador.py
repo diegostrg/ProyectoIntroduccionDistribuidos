@@ -34,6 +34,25 @@ class Pruebador:
             6001: "10.43.96.34"    # Broker puerto alternativo
         }
 
+        # Credenciales de autenticación para las pruebas
+        self.credenciales_facultades = {
+            "Facultad de Ciencias Sociales": "sociales2024",
+            "Facultad de Ciencias Naturales": "naturales2024",
+            "Facultad de Ingeniería": "ingenieria2024",
+            "Facultad de Medicina": "medicina2024",
+            "Facultad de Derecho": "derecho2024",
+            "Facultad de Artes": "artes2024",
+            "Facultad de Educación": "educacion2024",
+            "Facultad de Ciencias Económicas": "economicas2024",
+            "Facultad de Arquitectura": "arquitectura2024",
+            "Facultad de Tecnología": "tecnologia2024"
+        }
+        
+        # Facultad por defecto para pruebas
+        self.facultad_prueba = "Facultad de Ingeniería"
+        self.password_facultad = self.credenciales_facultades[self.facultad_prueba]
+
+
     def _get_ip_for_port(self, puerto):
         """Obtiene la IP correcta según el puerto"""
         return self.puerto_ip_map.get(puerto, "localhost")
