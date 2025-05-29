@@ -29,7 +29,7 @@ class BrokerBalanceador:
             "backup": self.backend_backup
         }
         
-        self.servidores_activos = []
+        self.servidores_activos = ["dti", "backup"]  # Iniciar con ambos servidores activos.
         self.indice_actual = 0
         self.lock = threading.Lock()
         self.mapa_respuestas = {}
